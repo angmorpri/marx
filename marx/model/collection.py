@@ -8,10 +8,21 @@ la propia interfaz de la colección. También proporciona mecanismos de búsqued
 y filtrado.
 
 """
+from __future__ import annotations
 
-from typing import Any, Callable
+from copy import deepcopy
+from typing import Any, Callable, Iterable
 
 CollectionEntity = object
+
+# Metadatos de las entidades
+# 'source' indica la fuente de la entidad, que puede ser 'new' o 'add'.
+# 'status' indica el estado de la entidad, que puede ser 'active' o 'deleted'.
+#   Si está en 'deleted' no quiere decir que se haya eliminado realmente, pero
+#   se ignora en todos los métodos que afecten a la colección.
+# 'changes' es una lista de atributos que han cambiado desde que se incluye la
+#   entidad en la colección.
+BASE_META = {"source": None, "status": "active", "changes": []}
 
 
 class Collection:
@@ -51,10 +62,91 @@ class Collection:
     """
 
     def __init__(self, base: type, *, pkeys: list[str] | None = None):
-        self._base = base
-        self._entities = []
+        # Como hemos sobrescrito __setattr__, tenemos que inicializar
+        # los atributos de forma manual
+        super().__setattr__("_base", None)
+        super().__setattr__("_iid", None)
+        super().__setattr__("_entities", None)
+        super().__setattr__("_meta", None)
+        super().__setattr__("pkeys", None)
 
-        self.pkeys = pkeys or []  # Público, se puede modificar
+        self._base = base
+
+        self._iid = [0]  # Índice interno de la colección
+        self._entities = {}  # iid: entity
+        self._meta = {}  # Compartido por todas las colecciones derivadas
+
+        self.pkeys = pkeys or []  # Público, para que se pueda modificar
+
+    @property
+    def entity(self) -> CollectionEntity:
+        """Devuelve la única entidad de la colección, si solo hay una."""
+        if len(self) == 1:
+            return next(iter(self))[1]
+        raise ValueError("La colección no tiene una única entidad.")
+
+    # Interno
+    def _append(self, entity: CollectionEntity, **meta) -> None:
+        """Añade internamente una entidad.
+
+        Para poder almacenar metadatos sobre las entidades incluso cuando se
+        crean colecciones derivadas, existe un ID interno (iid) que se usa
+        para identificar a cada entidad.
+
+        Al añadir una nueva entidad, este método automáticamente incrementa el
+        ID y crea una entrada en el diccionario de entidades y en el de
+        metadatos. El diccionario de metadatos se comparte entre todas las
+        colecciones derivadas, y se puede usar para almacenar información
+        adicional sobre las entidades.
+
+        Todo argumento pasado aparte de la entidad a añadir, se almacena como
+        metadato de la entidad.
+
+        """
+        iid = self._iid[0]
+        self._entities[iid] = entity
+        _copy = deepcopy(BASE_META)
+        _copy.update(meta)
+        self._meta[iid] = _copy
+        self._iid[0] += 1
+
+    def _subset(self, entities: list[int], iid: list[int]) -> Collection:
+        """Crea una nueva colección derivada de esta.
+
+        Recibe el listado con los IDs internos de cada entidad, y el puntero
+        al ID interno de la colección. Copia las entidades adecuadas junto con
+        sus metadatos.
+
+        Devuelve una nueva colección con la misma base y dichos datos.
+
+        """
+        subset = self.__class__(self._base, pkeys=self.pkeys)
+        subset._entities = {iid: self._entities[iid] for iid in entities}
+        subset._meta = self._meta
+        subset._iid = iid
+        return subset
+
+    @property
+    def _active(self) -> list[tuple[int, CollectionEntity]]:
+        """Devuelve una lista de tuplas (iid, entity) de las entidades activas."""
+        return [
+            (iid, entity)
+            for iid, entity in self._entities.items()
+            if self._meta[iid]["status"] == "active"
+        ]
+
+    # Métodos de comprobación
+    def empty(self) -> bool:
+        """Devuelve True si la colección está vacía."""
+        return not bool(self._active)
+
+    def __iter__(self) -> Iterable[CollectionEntity]:
+        """Itera sobre las entidades activas de la colección."""
+        return (entity for _, entity in self._active)
+
+    def __len__(self) -> int:
+        """Devuelve la cantidad de entidades activas de la colección."""
+        return len(self._active)
 
     # Métodos de manipulación
     def new(self, *args: Any, **kwargs: Any) -> CollectionEntity:
@@ -69,7 +161,7 @@ class Collection:
 
         """
         entity = self._base(*args, **kwargs)
-        self.add(entity)
+        self._append(entity, source="new")
         return entity
 
     def add(self, entity: CollectionEntity) -> None:
@@ -79,7 +171,9 @@ class Collection:
         se comprueba si la entidad ya existe en la colección.
 
         """
-        self._entities.append(entity)
+        if not isinstance(entity, self._base):
+            raise TypeError(f"La entidad debe ser de tipo {self._base!r}")
+        self._append(entity, source="add")
 
     def update(self, *args: Any, **kwargs: Any) -> None:
         """Actualiza todas las entidades de esta colección.
@@ -100,5 +194,178 @@ class Collection:
             for pkey, arg in zip(self.pkeys, args):
                 kwargs[pkey] = arg
         for attr, value in kwargs.items():
-            for entity in self._entities:
-                setattr(entity, attr, value)
+            for iid, entity in self._active:
+                if getattr(entity, attr) != value:
+                    self._meta[iid]["changes"].append(attr)
+                    setattr(entity, attr, value)
+
+    def __setattr__(self, attr: str, value: Any) -> None:
+        """Adaptación para que los atributos no propios de 'Collection' se
+        apliquen a las entidades de la colección.
+
+        Cuando el atributo no pertenece a 'Collection', se trata de aplicar
+        a todas las entidades (como un 'update').
+
+        Si la colección está vacía (de elementos activos), o si el atributo
+        no pertenece a las entidades, se lanza una excepción.
+
+        """
+        if attr in self.__dict__:
+            super().__setattr__(attr, value)
+        else:
+            if self.empty():
+                raise AttributeError(
+                    f"'{attr!r}' no es un atributo de 'Collection' y la colección está vacía."
+                )
+            aux = next(iter(self))
+            if hasattr(aux, attr):
+                self.update(**{attr: value})
+            else:
+                raise AttributeError(
+                    f"{attr!r} no es un atributo de 'Collection' ni de '{self._base.__name__}'"
+                )
+
+    def delete(self) -> None:
+        """Elimina todas las entidades de esta colección."""
+        for iid, _ in self._active:
+            self._meta[iid]["status"] = "deleted"
+
+    # Métodos de consulta, filtrado y búsqueda
+    def search(
+        self, *args: object | Callable[[CollectionEntity], bool], **kwargs: Any
+    ) -> Collection | None:
+        """Busca entidades de acuerdo a las condiciones indicadas.
+
+        La forma estándar de usar este método es indicando los atributos a
+        buscar mediante **kwargs, siendo cada clave el nombre del atributo y
+        cada valor el valor a buscar. Alternativamente, se pueden pasar
+        mediante *args funciones que reciban una entidad y devuelvan un valor
+        booleano en función de si la entidad cumple o no las condiciones. Todas
+        las condiciones se unen mediante un AND lógico.
+
+        Si *args recibe valores que no son funciones, estas se asignarán, en
+        orden, a los atributos que hayan sido definidos como claves primarias.
+        Si no hay claves primarias definidas, se ignorarán. Si hay más valores
+        que claves primarias, se ignorarán los sobrantes. Tener en cuenta que
+        si luego estas claves se vuelven a especificar mediante **kwargs, se
+        ignorarán estos últimos.
+
+        Si se usa tanto *args para valores a asignar a las claves primarias,
+        como con funciones, NO pueden aparecer valores que no sean funciones
+        después de la primera función.
+
+        Devuelve una nueva colección derivada sólo con las entidades que
+        cumplen las condiciones, o None, si la colección está vacía.
+
+        """
+        _lock_args = False
+        pkeys = iter(self.pkeys)
+        filters = []
+        for arg in args:
+            if callable(arg):
+                _lock_args = True
+                filters.append(arg)
+            elif _lock_args:
+                raise TypeError(
+                    "Los argumentos de valores para claves primarias "
+                    "no pueden aparecer después de argumentos de funciones de filtrado."
+                )
+            else:
+                try:
+                    kwargs[next(pkeys)] = arg
+                except StopIteration:
+                    pass
+        for attr, value in kwargs.items():
+            filters.append(lambda entity: getattr(entity, attr) == value)
+        entities = [iid for iid, entity in self._active if all(f(entity) for f in filters)]
+        if entities:
+            return self._subset(entities, self._iid)
+        return None
+
+    def get(
+        self, *args: object | Callable[[CollectionEntity], bool], **kwargs: Any
+    ) -> CollectionEntity | None:
+        """Obtiene una única entidad de acuerdo a las condiciones indicadas.
+
+        La forma estándar de usar este método es indicando los atributos a
+        buscar mediante **kwargs, siendo cada clave el nombre del atributo y
+        cada valor el valor a buscar. Alternativamente, se pueden pasar
+        mediante *args funciones que reciban una entidad y devuelvan un valor
+        booleano en función de si la entidad cumple o no las condiciones. Todas
+        las condiciones se unen mediante un AND lógico.
+
+        Si *args recibe valores que no son funciones, estas se asignarán, en
+        orden, a los atributos que hayan sido definidos como claves primarias.
+        Si no hay claves primarias definidas, se ignorarán. Si hay más valores
+        que claves primarias, se ignorarán los sobrantes. Tener en cuenta que
+        si luego estas claves se vuelven a especificar mediante **kwargs, se
+        ignorarán estos últimos.
+
+        Si se usa tanto *args para valores a asignar a las claves primarias,
+        como con funciones, NO pueden aparecer valores que no sean funciones
+        después de la primera función.
+
+        Devuelve la primera entidad que cumpla las condiciones, o None, si no
+        hay ninguna.
+
+        """
+        c = self.search(*args, **kwargs)
+        if c:
+            iid = next(iter(c._active))[0]
+            return self._subset([iid], self._iid)
+        return None
+
+    def __getitem__(self, key: Any) -> CollectionEntity | None:
+        """Syntax sugar para 'get' usando las claves primarias.
+
+        Si no hay claves primarias definidas, se lanza una excepción.
+
+        """
+        if not self.pkeys:
+            raise TypeError("No hay claves primarias definidas.")
+        if isinstance(key, (list, tuple)):
+            self.get(*key)
+        else:
+            return self.get(key)
+
+    def __getattr__(self, attr: str) -> Any:
+        """Adaptación para que los atributos no propios de 'Collection' se
+        apliquen a las entidades de la colección.
+
+        Cuando el atributo no pertenece a 'Collection' y en la colección sólo
+        hay un elemento, se devuelve el valor del atributo de dicha entidad.
+
+        Si la colección está vacía (de elementos activos), o si el atributo
+        no pertenece a las entidades, se lanza una excepción.
+
+        """
+        if self.empty():
+            raise AttributeError(
+                f"{attr!r} no es un atributo de 'Collection' y la colección está vacía."
+            )
+        elif len(self) > 1:
+            raise AttributeError(
+                f"{attr!r} no es un atributo de 'Collection' y la colección tiene más de un elemento."
+            )
+        else:
+            aux = next(iter(self))
+            if hasattr(aux, attr):
+                return getattr(aux, attr)
+            else:
+                raise AttributeError(
+                    f"{attr!r} no es un atributo de 'Collection' ni de '{self._base.__name__}'"
+                )
+
+    # Métodos de representación
+    def show(self) -> None:
+        """Muestra los datos de la colección directamente por pantalla."""
+        for entity in self:
+            print(entity)
+
+    def __repr__(self) -> str:
+        """Representación de la colección."""
+        return f"<Collection {self._base.__name__} ({len(self)})>"
+
+    def __str__(self) -> str:
+        """Representación de la colección."""
+        return repr(self)
