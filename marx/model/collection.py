@@ -82,7 +82,7 @@ class Collection:
     def entity(self) -> CollectionEntity:
         """Devuelve la única entidad de la colección, si solo hay una."""
         if len(self) == 1:
-            return next(iter(self))[1]
+            return next(iter(self))
         raise ValueError("La colección no tiene una única entidad.")
 
     # Interno
@@ -135,6 +135,33 @@ class Collection:
             if self._meta[iid]["status"] == "active"
         ]
 
+    @property
+    def _changed(self) -> list[tuple[int, CollectionEntity, list[str]]]:
+        """Devuelve una lista de tuplas (iid, entity, changes) de las entidades modificadas."""
+        return [
+            (iid, entity, self._meta[iid]["changes"])
+            for iid, entity in self._entities.items()
+            if self._meta[iid]["changes"]
+        ]
+
+    @property
+    def _deleted(self) -> list[tuple[int, CollectionEntity]]:
+        """Devuelve una lista de tuplas (iid, entity) de las entidades eliminadas."""
+        return [
+            (iid, entity)
+            for iid, entity in self._entities.items()
+            if self._meta[iid]["status"] == "deleted"
+        ]
+
+    @property
+    def _new(self) -> list[tuple[int, CollectionEntity]]:
+        """Devuelve una lista de tuplas (iid, entity) de las entidades nuevas."""
+        return [
+            (iid, entity)
+            for iid, entity in self._entities.items()
+            if self._meta[iid]["source"] == "new"
+        ]
+
     # Métodos de comprobación
     def empty(self) -> bool:
         """Devuelve True si la colección está vacía."""
@@ -175,7 +202,9 @@ class Collection:
             raise TypeError(f"La entidad debe ser de tipo {self._base!r}")
         self._append(entity, source="add")
 
-    def update(self, *args: Any, **kwargs: Any) -> None:
+    def update(
+        self, *args: object | Callable[[Any], Any], **kwargs: object | Callable[[Any], Any]
+    ) -> None:
         """Actualiza todas las entidades de esta colección.
 
         Normalmente, este método se llama indicando los atributos a modificar
@@ -189,15 +218,20 @@ class Collection:
         Nota: Si se usan *args pero luego se especifican atributos mediante
         **kwargs, se ignorarán estos últimos.
 
+        El nuevo valor puede ser cualquier valor válido para el atributo, o,
+        en caso de ser una función, el valor devuelto por la función al pasarle
+        el actual valor de dicho atributo como argumento.
+
         """
         if args:
             for pkey, arg in zip(self.pkeys, args):
                 kwargs[pkey] = arg
         for attr, value in kwargs.items():
             for iid, entity in self._active:
-                if getattr(entity, attr) != value:
+                tvalue = value(getattr(entity, attr)) if callable(value) else value
+                if getattr(entity, attr) != tvalue:
                     self._meta[iid]["changes"].append(attr)
-                    setattr(entity, attr, value)
+                    setattr(entity, attr, tvalue)
 
     def __setattr__(self, attr: str, value: Any) -> None:
         """Adaptación para que los atributos no propios de 'Collection' se
@@ -368,4 +402,6 @@ class Collection:
 
     def __str__(self) -> str:
         """Representación de la colección."""
+        if len(self) == 1:
+            return str(self.entity)
         return repr(self)

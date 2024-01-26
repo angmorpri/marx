@@ -6,3 +6,4 @@ También define los adaptadores para la base de datos.
 
 """
 from .collection import Collection
+from .adapters import RawAdapter

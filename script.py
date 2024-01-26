@@ -1,22 +1,19 @@
 # Python 3.10.11
 # Creado: 24/01/2024
 """Para hacer pequeñas pruebas de código."""
-import weakref
-from copy import deepcopy
-from dataclasses import dataclass
+import re
+
+from marx.model import RawAdapter
 
 
-@dataclass
-class User:
-    name: str
-    age: int
-
-
-class RanUser:
-    def __init__(self, name: str, age: int):
-        self.name = name
-        self.age = age
+PATH = "G:/Mi unidad/MiBilletera Backups/Ene_26_2024_ExpensoDB"
 
 
 if __name__ == "__main__":
-    print(RanUser.__dict__)
+    adapter = RawAdapter(PATH)
+    suite = adapter.load()
+    tcats = suite.notes.search(lambda x: re.match(r"^T\d{2}\. .+", x.text))
+    tcats.update(text=lambda x: "[" + x + "]")
+    suite.notes.show()
+    adapter.save()
+    print("OK")
