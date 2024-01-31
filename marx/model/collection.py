@@ -11,7 +11,9 @@ y filtrado.
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import Any, Callable, Iterable
+from typing import Any, Callable
+
+from more_itertools import windowed
 
 CollectionEntity = object
 
@@ -182,6 +184,21 @@ class Collection:
         for iid, _ in self._active:
             yield self._subset([iid], self._iid)
 
+    def sort(self, *args: str, reverse: bool = False) -> Collection:
+        """Ordena las entidades de la colección.
+
+        Se pueden pasar varios atributos para ordenar por ellos, en orden de
+        prioridad.
+
+        Si se indica 'reverse=True', se invierte el orden de ordenación.
+
+        Itera por la colección ordenadamente.
+
+        """
+        key = lambda x: [getattr(x[1], attr) for attr in args]
+        for iid, _ in sorted(self._active, key=key, reverse=reverse):
+            yield self._subset([iid], self._iid)
+
     def __len__(self) -> int:
         """Devuelve la cantidad de entidades activas de la colección."""
         return len(self._active)
@@ -306,9 +323,10 @@ class Collection:
         cumplen las condiciones, o None, si la colección está vacía.
 
         """
-        _lock_args = False
-        pkeys = iter(self.pkeys)
+        # Dividiendo argumentos posicionales en funciones y valores
+        positional = []
         filters = []
+        _lock_args = False
         for arg in args:
             if callable(arg):
                 _lock_args = True
@@ -319,15 +337,22 @@ class Collection:
                     "no pueden aparecer después de argumentos de funciones de filtrado."
                 )
             else:
-                try:
-                    kwargs[next(pkeys)] = arg
-                except StopIteration:
-                    pass
-        for attr, value in kwargs.items():
-            filters.append(lambda entity: getattr(entity, attr) == value)
-        entities = [iid for iid, entity in self._active if all(f(entity) for f in filters)]
-        if entities:
-            return self._subset(entities, self._iid)
+                positional.append(arg)
+        # Si hay posicionales, llamamos a este mismo método asignando, en orden
+        # los valores a las claves primarias, hasta que alguna ejecución no
+        # devuelva None.
+        if positional:
+            for keys in windowed(self.pkeys, len(positional)):
+                extra = {k: v for k, v in zip(keys, positional)}
+                res = self.search(*filters, **kwargs, **extra)
+                if res:
+                    return res
+        else:
+            for attr, value in kwargs.items():
+                filters.append(lambda entity: getattr(entity, attr) == value)
+            entities = [iid for iid, entity in self._active if all(f(entity) for f in filters)]
+            if entities:
+                return self._subset(entities, self._iid)
         return None
 
     def get(
@@ -409,8 +434,12 @@ class Collection:
     def show(self) -> None:
         """Muestra los datos de la colección directamente por pantalla."""
         entities = [i[1] for i in self._active]
-        for entity in sorted(entities):
-            print(entity)
+        try:
+            for entity in sorted(entities):
+                print(entity)
+        except:
+            for entity in entities:
+                print(entity)
 
     def __repr__(self) -> str:
         """Representación de la colección."""

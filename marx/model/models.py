@@ -115,7 +115,7 @@ class Category:
         return self.name.split(". ")[0]
 
     @code.setter
-    def _(self, value):
+    def code(self, value):
         """Cambia el código de la categoría."""
         self.name = f"{value}. {self.title}"
 
@@ -125,7 +125,7 @@ class Category:
         return self.name.split(". ")[1]
 
     @title.setter
-    def _(self, value):
+    def title(self, value):
         """Cambia el título de la categoría."""
         self.name = f"{self.code}. {value}"
 
@@ -279,4 +279,13 @@ class Event:
             flow = f"{flow} [R]"
         elif self.status == "open":
             flow = f"{flow} [0]"
+        if self.rsource and self.rsource != -1:
+            flow = f"{flow} [P={self.rsource}]"
         return f"{head} {amount} {category} {flow} {self.concept}"
+
+
+if __name__ == "__main__":
+    cat = Category(1, "A21. Alquiler")
+    print(cat.code, cat.title)
+    cat.code = "X99"
+    print(cat)
