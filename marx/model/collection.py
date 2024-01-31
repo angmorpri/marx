@@ -82,11 +82,11 @@ class Collection:
     def entity(self) -> CollectionEntity:
         """Devuelve la única entidad de la colección, si solo hay una."""
         if len(self) == 1:
-            return next(iter(self))
+            return next(iter(self._active))[1]
         raise ValueError("La colección no tiene una única entidad.")
 
     # Interno
-    def _append(self, entity: CollectionEntity, **meta) -> None:
+    def _append(self, entity: CollectionEntity, **meta) -> int:
         """Añade internamente una entidad.
 
         Para poder almacenar metadatos sobre las entidades incluso cuando se
@@ -102,6 +102,8 @@ class Collection:
         Todo argumento pasado aparte de la entidad a añadir, se almacena como
         metadato de la entidad.
 
+        Devuelve el ID interno de la entidad añadida.
+
         """
         iid = self._iid[0]
         self._entities[iid] = entity
@@ -109,6 +111,7 @@ class Collection:
         _copy.update(meta)
         self._meta[iid] = _copy
         self._iid[0] += 1
+        return iid
 
     def _subset(self, entities: list[int], iid: list[int]) -> Collection:
         """Crea una nueva colección derivada de esta.
@@ -167,16 +170,24 @@ class Collection:
         """Devuelve True si la colección está vacía."""
         return not bool(self._active)
 
-    def __iter__(self) -> Iterable[CollectionEntity]:
-        """Itera sobre las entidades activas de la colección."""
-        return (entity for _, entity in self._active)
+    def __iter__(self) -> Collection:
+        """Itera sobre las entidades activas de la colección.
+
+        No devuelve el elemento de por sí, sino otra colección de un solo
+        elemento. De esta forma, si se modifican atributos, se siguen
+        monitorizando por la clase. Si se quiere acceder al elemento, se puede
+        usar el atributo 'entity'.
+
+        """
+        for iid, _ in self._active:
+            yield self._subset([iid], self._iid)
 
     def __len__(self) -> int:
         """Devuelve la cantidad de entidades activas de la colección."""
         return len(self._active)
 
     # Métodos de manipulación
-    def new(self, *args: Any, **kwargs: Any) -> CollectionEntity:
+    def new(self, *args: Any, **kwargs: Any) -> Collection:
         """Crea una nueva entidad, usando el constructor original, y la añade
         a la colección.
 
@@ -184,23 +195,26 @@ class Collection:
         Cualquier error que se produzca será lanzado por el constructor
         y no por este método.
 
-        Devuelve la nueva entidad creada.
+        Devuelve una colección de un solo elemento con la nueva entidad.
 
         """
         entity = self._base(*args, **kwargs)
-        self._append(entity, source="new")
-        return entity
+        iid = self._append(entity, source="new")
+        return self._subset([iid], self._iid)
 
-    def add(self, entity: CollectionEntity) -> None:
+    def add(self, entity: CollectionEntity) -> Collection:
         """Añade una entidad a la colección.
 
         'entity' debe ser una instancia de la clase base de la colección. No
         se comprueba si la entidad ya existe en la colección.
 
+        Devuelve una colección de un solo elemento con la nueva entidad.
+
         """
         if not isinstance(entity, self._base):
             raise TypeError(f"La entidad debe ser de tipo {self._base!r}")
-        self._append(entity, source="add")
+        iid = self._append(entity, source="add")
+        return self._subset([iid], self._iid)
 
     def update(
         self, *args: object | Callable[[Any], Any], **kwargs: object | Callable[[Any], Any]
@@ -251,7 +265,7 @@ class Collection:
                 raise AttributeError(
                     f"'{attr!r}' no es un atributo de 'Collection' y la colección está vacía."
                 )
-            aux = next(iter(self))
+            aux = next(iter(self._active))[1]
             if hasattr(aux, attr):
                 self.update(**{attr: value})
             else:
@@ -318,7 +332,7 @@ class Collection:
 
     def get(
         self, *args: object | Callable[[CollectionEntity], bool], **kwargs: Any
-    ) -> CollectionEntity | None:
+    ) -> Collection | None:
         """Obtiene una única entidad de acuerdo a las condiciones indicadas.
 
         La forma estándar de usar este método es indicando los atributos a
@@ -339,8 +353,9 @@ class Collection:
         como con funciones, NO pueden aparecer valores que no sean funciones
         después de la primera función.
 
-        Devuelve la primera entidad que cumpla las condiciones, o None, si no
-        hay ninguna.
+        Devuelve una colección de un solo elemento con la entidad que cumple
+        las condiciones, o None, si la colección está vacía. En caso de que
+        varias entidades cumplan las condiciones, se devuelve la primera.
 
         """
         c = self.search(*args, **kwargs)
@@ -349,7 +364,7 @@ class Collection:
             return self._subset([iid], self._iid)
         return None
 
-    def __getitem__(self, key: Any) -> CollectionEntity | None:
+    def __getitem__(self, key: Any) -> Collection | None:
         """Syntax sugar para 'get' usando las claves primarias.
 
         Si no hay claves primarias definidas, se lanza una excepción.
@@ -382,18 +397,19 @@ class Collection:
                 f"{attr!r} no es un atributo de 'Collection' y la colección tiene más de un elemento."
             )
         else:
-            aux = next(iter(self))
-            if hasattr(aux, attr):
-                return getattr(aux, attr)
-            else:
+            entity = self.entity
+            try:
+                return getattr(entity, attr)
+            except AttributeError:
                 raise AttributeError(
                     f"{attr!r} no es un atributo de 'Collection' ni de '{self._base.__name__}'"
-                )
+                ) from None
 
     # Métodos de representación
     def show(self) -> None:
         """Muestra los datos de la colección directamente por pantalla."""
-        for entity in self:
+        entities = [i[1] for i in self._active]
+        for entity in sorted(entities):
             print(entity)
 
     def __repr__(self) -> str:

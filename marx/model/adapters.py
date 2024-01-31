@@ -30,10 +30,11 @@ llamada 'suite'. Por ejemplo, para acceder a la colección de cuentas, se usarí
 import shutil
 import sqlite3 as sqlite
 from collections import namedtuple
+from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 
-from marx.model import Collection
+from marx.model import Collection, Account, Category, Note, Event
 
 
 TABLES = {
@@ -50,6 +51,8 @@ RawAdapterSuite = namedtuple(
     ["accounts", "categories", "notes", "recurring", "transactions", "transfers"],
 )
 
+MarxAdapterSuite = namedtuple("MarxAdapterSuite", ["accounts", "categories", "notes", "events"])
+
 
 class RawAdapter:
     """Adaptador de datos "en crudo" de la base de datos.
@@ -64,13 +67,19 @@ class RawAdapter:
         - transactions: Transacciones.
         - transfers: Transferencias.
 
-    Todas estas colecciones se componen de instancias 'DefaultEntity', que
-    mapean automáticamente los datos de cada tabla de la base de datos.
+    Todas estas colecciones se componen de instancias 'SimpleNamespace', que
+    mapean automáticamente los datos de cada tabla de la base de datos. Debido
+    a ello, se tiene que tener en cuenta que no hay ningún tipo de validación
+    de datos, por lo que si se modifican los datos de forma incorrecta, se
+    pueden producir errores al guardarlos de nuevo.
+
+    El constructor recibe la ruta a la base de datos.
 
     """
 
     def __init__(self, db_path: str | Path):
         self.db_path = Path(db_path)
+        self.suite = None
 
     def load(self) -> RawAdapterSuite:
         """Carga los datos de la base de datos.
@@ -78,6 +87,9 @@ class RawAdapter:
         Devuelve una namedtuple con las colecciones de datos cargadas.
 
         """
+        if self.suite:
+            return self.suite
+
         self.suite = RawAdapterSuite(
             accounts=Collection(SimpleNamespace, pkeys=["id"]),
             categories=Collection(SimpleNamespace, pkeys=["id"]),
@@ -177,3 +189,163 @@ class RawAdapter:
                 for iid, entity in entities._deleted:
                     pkey = (prefix + "_id").replace("note_id", "notey_id")
                     cursor.execute(f"DELETE FROM {table} WHERE {pkey} = {entity.id}")
+
+
+class MarxAdapter:
+    """Adaptador de datos al formato usado por Marx.
+
+    Al cargar, presenta las siguientes colecciones en el atributo 'suite',
+    que agregan de forma lógica los diferentes tipos de datos de la base:
+
+        - accounts: Cuentas.
+        - categories: Categorías.
+        - notes: Notas.
+        - events: Eventos. Esto incluye transacciones, transferencias y
+            operaciones recurrentes.
+
+    Cada una de ellas es una colección tipo 'Collection', cuya clase base es,
+    respectivamente, 'Account', 'Category', 'Note' y 'Event'.
+
+    El constructor puede recibir o bien la ruta a la base de datos, o bien un
+    adaptador de datos en crudo tipo 'RawAdapter'.
+
+    """
+
+    def __init__(self, source: str | Path | RawAdapter):
+        if isinstance(source, RawAdapter):
+            self.source = source
+        else:
+            self.source = RawAdapter(source)
+        self.suite = None
+
+    def load(self) -> MarxAdapterSuite:
+        """Carga los datos de la base de datos.
+
+        Devuelve una namedtuple con las colecciones de datos cargadas.
+
+        """
+        if self.suite:
+            return self.suite
+        raw_suite = self.source.load()
+
+        self.suite = MarxAdapterSuite(
+            accounts=Collection(Account, pkeys=["id", "name"]),
+            categories=Collection(Category, pkeys=["id", "code", "title", "name"]),
+            notes=Collection(Note, pkeys=["id"]),
+            events=Collection(Event, pkeys=["id"]),
+        )
+
+        # Cuentas
+        for raw_account in raw_suite.accounts:
+            self.suite.accounts.new(
+                id=raw_account.id,
+                name=raw_account.name,
+                order=raw_account.order,
+                color=raw_account.color,
+            )
+
+        # Categorías
+        for raw_category in raw_suite.categories:
+            self.suite.categories.new(
+                id=raw_category.id,
+                name=raw_category.name,
+                icon=raw_category.icon,
+                color=raw_category.color,
+            )
+
+        # Categorías de traslado (vienen de 'notes')
+        for raw_note in raw_suite.notes.search(lambda x: x.text.strip().startswith("[T")):
+            catname = raw_note.text.strip().split("\n")[0]
+            self.suite.categories.new(
+                id=-raw_note.id,
+                name=catname[1:-1],
+            )
+
+        # Notas
+        for raw_note in raw_suite.notes.search(lambda x: not x.text.strip().startswith("[T")):
+            target = ["payee", "payer", "note"][raw_note.payee_payer]
+            self.suite.notes.new(
+                id=raw_note.id,
+                text=raw_note.text,
+                target=target,
+            )
+
+        # Transacciones
+        for raw_trans in raw_suite.transactions:
+            date = datetime.strptime(raw_trans.date, "%Y%m%d")
+            amount = round(raw_trans.amount, 2)
+            category = self.suite.categories[raw_trans.cat]
+            if category is None:
+                category = self.suite.categories.new(
+                    raw_trans.cat,
+                    f"X{raw_trans.cat:02}. UNKNOWN",
+                )
+            account = self.suite.accounts[raw_trans.acc_id]
+            if account is None:
+                account = self.suite.accounts.new(
+                    raw_trans.acc_id,
+                    f"UNKNOWN_{raw_trans.acc_id:02}",
+                )
+            counterpart = raw_trans.payee_name
+            if raw_trans.is_debit:
+                orig = account.entity
+                dest = counterpart
+            else:
+                orig = counterpart
+                dest = account.entity
+            _c, *_d = raw_trans.note.split("\n")
+            _c = _c.strip()
+            _d = "\n".join(_d).strip()
+            concept = _c if _c else "Sin concepto"
+            details = _d if _d else ""
+            status = "closed" if raw_trans.is_paid else "open"
+            rsource = raw_trans.rec_id if raw_trans.is_bill else -1
+            self.suite.events.new(
+                id=raw_trans.id,
+                date=date,
+                amount=amount,
+                category=category.entity,
+                orig=orig,
+                dest=dest,
+                concept=concept,
+                details=details,
+                status=status,
+                rsource=rsource,
+            )
+
+        # Traslados
+        for raw_trans in raw_suite.transfers:
+            date = datetime.strptime(raw_trans.date, "%Y%m%d")
+            amount = round(raw_trans.amount, 2)
+            orig = self.suite.accounts[raw_trans.from_id]
+            if orig is None:
+                orig = self.suite.accounts.new(raw_trans.from_id, f"UNKNOWN_{raw_trans.from_id:02}")
+            dest = self.suite.accounts[raw_trans.to_id]
+            if dest is None:
+                dest = self.suite.accounts.new(raw_trans.to_id, f"UNKNOWN_{raw_trans.to_id:02}")
+            maybe_cat, *rest = raw_trans.note.split("\n")
+            if maybe_cat.startswith("[") and maybe_cat.endswith("]"):
+                name = maybe_cat[1:-1]
+                category = self.suite.categories.get(name=name)
+                if category is None:
+                    category = self.suite.categories.new(
+                        id=-999,
+                        name="V" + name[1:],
+                    )
+            else:
+                category = self.suite.categories.get(code="T14")
+                rest = [maybe_cat] + rest
+            concept = rest[0].strip() if rest else "Sin concepto"
+            details = "\n".join(rest[1:]).strip() if rest[1:] else ""
+            self.suite.events.new(
+                id=-raw_trans.id,
+                date=date,
+                amount=amount,
+                category=category.entity,
+                orig=orig.entity,
+                dest=dest.entity,
+                concept=concept,
+                details=details,
+            )
+
+        return self.suite
