@@ -281,12 +281,14 @@ class MarxAdapter:
                 category = self.suite.categories.new(
                     raw_trans.cat,
                     f"X{raw_trans.cat:02}. UNKNOWN",
+                    unknown=True,
                 )
             account = self.suite.accounts[raw_trans.acc_id]
             if account is None:
                 account = self.suite.accounts.new(
                     raw_trans.acc_id,
                     f"UNKNOWN_{raw_trans.acc_id:02}",
+                    unknown=True,
                 )
             counterpart = raw_trans.payee_name
             if raw_trans.is_debit:
@@ -321,10 +323,14 @@ class MarxAdapter:
             amount = round(raw_trans.amount, 2)
             orig = self.suite.accounts[raw_trans.from_id]
             if orig is None:
-                orig = self.suite.accounts.new(raw_trans.from_id, f"UNKNOWN_{raw_trans.from_id:02}")
+                orig = self.suite.accounts.new(
+                    raw_trans.from_id, f"UNKNOWN_{raw_trans.from_id:02}", unknown=True
+                )
             dest = self.suite.accounts[raw_trans.to_id]
             if dest is None:
-                dest = self.suite.accounts.new(raw_trans.to_id, f"UNKNOWN_{raw_trans.to_id:02}")
+                dest = self.suite.accounts.new(
+                    raw_trans.to_id, f"UNKNOWN_{raw_trans.to_id:02}", unknown=True
+                )
             maybe_cat, *rest = raw_trans.note.split("\n")
             if maybe_cat.startswith("[") and maybe_cat.endswith("]"):
                 name = maybe_cat[1:-1]
@@ -336,6 +342,7 @@ class MarxAdapter:
                         category = self.suite.categories.new(
                             id=-999,
                             name=vname,
+                            unknown=True,
                         )
             else:
                 category = self.suite.categories.get(code="T14")
@@ -362,12 +369,14 @@ class MarxAdapter:
                 category = self.suite.categories.new(
                     raw_trans.cat,
                     f"X{raw_trans.cat:02}. UNKNOWN",
+                    unknown=True,
                 )
             account = self.suite.accounts[raw_trans.acc_id]
             if account is None:
                 account = self.suite.accounts.new(
                     raw_trans.acc_id,
                     f"UNKNOWN_{raw_trans.acc_id:02}",
+                    unknown=True,
                 )
             counterpart = raw_trans.payee_name
             if raw_trans.is_debit:

@@ -49,12 +49,16 @@ class Account:
     que debe aparecer representada respecto a otras, y el color ('color')
     asignado en la app.
 
+    En caso de una cuenta desconocida, debe marcarse el atributo 'unknown' como
+    True.
+
     """
 
     id: int
     name: str
     order: int = 100
     color: str = "#FFFFFF"
+    unknown: bool = False
 
     @property
     def rid(self):
@@ -88,12 +92,16 @@ class Category:
     por un código ('code') y un título ('title')), un color ('color'), y un
     icono ('icon') para la app identificado por su ID.
 
+    En caso de una categoría desconocida, debe marcarse el atributo 'unknown'
+    como True.
+
     """
 
     id: int
     name: str
     icon: int = 0
     color: str = "#FFFFFF"
+    unknown: bool = False
 
     @property
     def rid(self):
@@ -103,10 +111,10 @@ class Category:
     @property
     def type(self):
         """Devuelve el tipo de la categoría."""
-        if self.id < 0:
-            return 0
-        elif self.code.startswith("A"):
+        if self.code.startswith("A"):
             return 1
+        elif self.code.startswith("T"):
+            return 0
         return -1
 
     @property
@@ -138,6 +146,8 @@ class Category:
         return self.code < other.code
 
     def __str__(self) -> str:
+        if self.id == -1:
+            return f"[####] {self.name:30} ({self.icon:3}, {self.color})"
         return f"[{self.rid:04}] {self.name:30} ({self.icon:3}, {self.color})"
 
 
@@ -270,7 +280,10 @@ class Event:
         )
 
     def __str__(self) -> str:
-        head = f"[{self.rid:04}] {self.date:%d-%m-%Y}"
+        if self.id == -1:
+            head = f"[####] {self.date:%d-%m-%Y}"
+        else:
+            head = f"[{self.rid:04}] {self.date:%d-%m-%Y}"
         sign = ["≷", "+", "-"][self.type]
         amount = f"{sign}{self.amount:10.2f}"
         category = f"{self.category.name:30}"

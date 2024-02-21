@@ -14,18 +14,16 @@ from marx.util import get_most_recent_db
 
 
 if __name__ == "__main__":
-    source = "G:/Mi unidad/MiBilletera Backups/MOD_Ene_31_2024_ExpensoDB.db"
+    source = get_most_recent_db("G:/Mi unidad/MiBilletera Backups/")
+    # source = "G:/Mi unidad/MiBilletera Backups/MOD_Ene_31_2024_ExpensoDB.db"
     adapter = MarxAdapter(source)
     adapter.load()
     budgets = defaultdict(int)
     for event in adapter.suite.events.search(status="closed"):
-        if event.type == 0:
-            budgets[event.orig.name] -= event.amount
-            budgets[event.dest.name] += event.amount
-        elif event.type == 1:
-            budgets[event.dest.name] += event.amount
-        elif event.type == -1:
-            budgets[event.orig.name] -= event.amount
+        for account, sign in zip((event.orig, event.dest), (-1, 1)):
+            if isinstance(account, str) or account.unknown:
+                continue
+            budgets[account.name] += sign * event.amount
     for name, amount in budgets.items():
         print(f"{name:20}: {amount:10.2f}")
     print("HECHO")

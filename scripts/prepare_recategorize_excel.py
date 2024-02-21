@@ -35,7 +35,10 @@ def prepare_excel(adapter: MarxAdapter, dir: str | Path) -> Path:
     income_sheet = wb.create_sheet("Ingresos")
     expense_sheet = wb.create_sheet("Gastos")
     transfer_sheet = wb.create_sheet("Traslados")
-    for type, sheet in zip((1, 0, -1), (income_sheet, transfer_sheet, expense_sheet)):
+    del wb["Sheet"]
+
+    # Ingresos y traslados se representan uno a uno
+    for type, sheet in zip((1, 0), (income_sheet, transfer_sheet)):
         sheet.append(("ID", "Origen", "Destino", "Concepto", "Categoría actual", "Nueva categoría"))
         for event in adapter.suite.events.search(type=type):
             sheet.append(
@@ -49,6 +52,41 @@ def prepare_excel(adapter: MarxAdapter, dir: str | Path) -> Path:
                 )
             )
     wb.save(output)
+
+    # Gastos se representan agrupados por concepto
+    expense_sheet.append(
+        ("ID", "Origen", "Destino", "Concepto", "Categoría actual", "Nueva categoría")
+    )
+    grouped = {}
+    for event in adapter.suite.events.search(type=-1):
+        if event.concept not in grouped:
+            grouped[event.concept] = {
+                "id": set(),
+                "orig": set(),
+                "dest": set(),
+                "category": set(),
+            }
+        grouped[event.concept]["id"].add(str(event.id))
+        grouped[event.concept]["orig"].add(
+            event.orig if isinstance(event.orig, str) else event.orig.name
+        )
+        grouped[event.concept]["dest"].add(
+            event.dest if isinstance(event.dest, str) else event.dest.name
+        )
+        grouped[event.concept]["category"].add(event.category.name)
+    for concept, data in grouped.items():
+        expense_sheet.append(
+            (
+                "; ".join(data["id"]),
+                "; ".join(data["orig"]),
+                "; ".join(data["dest"]),
+                concept,
+                "; ".join(data["category"]),
+                "",
+            )
+        )
+    wb.save(output)
+
     return output
 
 
