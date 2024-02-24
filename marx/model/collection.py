@@ -11,11 +11,11 @@ y filtrado.
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import Any, Callable
+from typing import Any, Callable, Generic, TypeVar
 
 from more_itertools import windowed
 
-CollectionEntity = object
+CollectionEntity = TypeVar("CollectionEntity")
 
 # Metadatos de las entidades
 # 'source' indica la fuente de la entidad, que puede ser 'new' o 'add'.
@@ -27,7 +27,7 @@ CollectionEntity = object
 BASE_META = {"source": None, "status": "active", "changes": []}
 
 
-class Collection:
+class Collection(Generic[CollectionEntity]):
     """Clase para representar una colección de datos.
 
     Una colección de datos almacena una cantidad arbitraria de entidades de un

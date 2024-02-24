@@ -8,3 +8,6 @@ También define los adaptadores para la base de datos.
 from .collection import Collection
 from .models import Account, Category, Note, Event
 from .adapters import RawAdapter, MarxAdapter
+
+Accounts = Collection[Account]
+Categories = Collection[Category]
