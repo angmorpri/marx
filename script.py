@@ -17,8 +17,7 @@ if __name__ == "__main__":
     adapter.load()
 
     d = Distribution(adapter)
-    d.source = "@Inversión"
-    d.source.ratio = 70
+    d.source = "@Ingresos"
     d.sinks.new(
         target="@Básicos",
         ratio=50,
@@ -38,3 +37,32 @@ if __name__ == "__main__":
         concept="Cuota mensual",
     )
     d.check(show=True)
+    d.run()
+
+    print("\n------------------------------\n")
+
+    d2 = Distribution(adapter)
+    d2.source = "@Reserva"
+    d2.sinks.new(
+        target="@Inversión",
+        amount=230,
+        category="T24",
+        concept="MyInvestor Indie",
+    )
+    d2.sinks.new(
+        target="@Inversión",
+        amount=50,
+        category="T24",
+        concept="Finanbest Profile Yellow",
+    )
+    d2.sinks.new(
+        target="@Inversión",
+        amount=20,
+        category="T23",
+        concept="MyInvestor Value",
+    )
+    d2.check(show=True)
+    d2.run()
+
+    adapter.save("AUTO_Test.db")
+    print(">>> Guardado en: AUTO_Test.db")

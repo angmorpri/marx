@@ -65,12 +65,16 @@ class Account:
         """Devuelve el id real de la cuenta."""
         return self.id
 
-    def __eq__(self, other: Account) -> bool:
-        """Compara dos cuentas."""
+    def __eq__(self, other: Account | str) -> bool:
+        """Compara dos cuentas o una cuenta y una contraparte."""
+        if isinstance(other, str):
+            return False
         return self.name == other.name
 
-    def __lt__(self, other: Account) -> bool:
-        """Compara dos cuentas."""
+    def __lt__(self, other: Account | str) -> bool:
+        """Compara dos cuentas o una cuenta y una contraparte."""
+        if isinstance(other, str):
+            return False
         return (self.order, self.name) < (other.order, other.name)
 
     def __str__(self) -> str:

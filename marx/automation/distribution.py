@@ -11,6 +11,7 @@ relativo.
 
 import random
 import string
+from datetime import datetime
 
 from marx.model import Account, Category, Collection, MarxAdapter
 
@@ -70,6 +71,10 @@ class DistrSource:
     def amount(self) -> float | None:
         return self._amount
 
+    @amount.setter
+    def amount(self, amount: float | None) -> None:
+        self._amount = amount
+
     @property
     def ratio(self) -> float | None:
         return self._ratio
@@ -127,7 +132,7 @@ class DistrSink(DistrSource):
         target: Account | str,
         category: Category | str,
         concept: str,
-        details: str | None = None,
+        details: str = "",
         amount: float | None = None,
         ratio: float | None = None,
         *,
@@ -255,28 +260,26 @@ class Distribution:
             for event in self._adapter.suite.events.search(
                 orig=self._source.target, status="closed"
             ):
-                input()
                 to_distr -= event.amount
             for event in self._adapter.suite.events.search(
                 dest=self._source.target, status="closed"
             ):
                 to_distr += event.amount
-            base_total = round(to_distr, 2)
+            base_total = to_distr
             if self._source.amount is not None:
                 to_distr = min(to_distr, self._source.amount)
             elif self._source.ratio is not None:
                 to_distr *= self._source.ratio
-            to_distr = round(to_distr, 2)
-        print(">>>", self._source.target, to_distr, base_total)
 
         # Sumideros
+        balance_check = to_distr
         for sink in self._sinks:
             if sink.ratio is not None:
                 if to_distr == 0:
                     raise ValueError("No se puede aplicar un ratio a una cantidad nula.")
                 sink._amount = sink.ratio * to_distr
-            to_distr -= sink.amount
-            if to_distr < 0:
+            balance_check -= sink.amount
+            if balance_check < 0:
                 raise ValueError("La cantidad a distribuir es insuficiente.")
 
         # Resumen
@@ -284,12 +287,43 @@ class Distribution:
             to_distr = sum(sink.amount for sink in self._sinks)
             extra = ""
             if base_total:
-                extra = f"({to_distr/base_total:.2%} del total)"
-            print(f"De {self._source.target} se reparten {to_distr}{extra}")
+                extra = f" ({to_distr/base_total:.2%} del total)"
+            print(f"De {self._source.target} se reparten {to_distr:.2f}{extra}")
             print("A:")
             for sink in self._sinks:
-                print(f"    {sink.target}: {sink.amount} ({sink.amount/to_distr:.2%})")
+                print(f"    {sink.target}: {sink.amount:.2f} ({sink.amount/to_distr:.2%})")
             print()
+        return True
+
+    def run(self, date: datetime | str | None = None) -> None:
+        """Ejecuta la distribución.
+
+        Se puede proveer una fecha para los eventos generados. Si no se hace,
+        se usará la fecha actual. El formato puede ser o bien un objeto
+        'datetime', o bien una cadena en formato 'YYYY-MM-DD'.
+
+        Antes de ejecutar la distribución, se comprobará que ésta es posible.
+        Si no lo es, se lanzará un ValueError.
+
+        """
+        if not self.check():
+            raise ValueError("La distribución no es posible.")
+
+        date = date or datetime.now()
+        if isinstance(date, str):
+            date = datetime.strptime(date, "%Y-%m-%d")
+
+        for sink in self._sinks:
+            self._adapter.suite.events.new(
+                id=-1,
+                date=date,
+                amount=sink.amount,
+                category=sink.category,
+                orig=self._source.target,
+                dest=sink.target,
+                concept=sink.concept,
+                details=sink.details,
+            )
 
     def __str__(self) -> str:
         return f"Distribution({self._source}, {len(self._sinks)} sumideros)"

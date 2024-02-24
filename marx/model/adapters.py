@@ -405,13 +405,16 @@ class MarxAdapter:
 
         return self.suite
 
-    def save(self, path: str | Path | None = None, *, only_update: bool = True) -> Path:
+    def save(
+        self, path: str | Path | None = None, *, only_update: bool = True, prefix: str = "MOD"
+    ) -> Path:
         """Guarda los datos en una base de datos SQLite3.
 
         Si no se proporciona ninguna ruta, se guarda en
         'MOD_<nombre original>[.db]'. Si se proporciona un Path, se guarda en
         éste. Si se proporciona una cadena, se guarda en la misma carpeta que
-        el original, pero con el nuevo nombre dado.
+        el original, pero con el nuevo nombre dado. También se puede cambiar
+        el prefijo por defecto ('MOD') por otro mediante el parámetro 'prefix'.
 
         Por defecto, solo se guardan los datos que han sido modificados desde
         la última carga. Si se quiere guardar todo, se debe pasar 'only_update'
@@ -425,7 +428,7 @@ class MarxAdapter:
         """
         # Obtención de la ruta
         if path is None:
-            path = self.db_path.parent / f"MOD_{self.db_path.name}"
+            path = self.db_path.parent / f"{prefix}_{self.db_path.name}"
             if not path.suffix:
                 path = path.with_suffix(".db")
         elif isinstance(path, str):

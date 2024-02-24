@@ -11,7 +11,7 @@ y filtrado.
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import Any, Callable, Generic, TypeVar
+from typing import Any, Callable, Generic, Iterator, TypeVar
 
 from more_itertools import windowed
 
@@ -172,7 +172,7 @@ class Collection(Generic[CollectionEntity]):
         """Devuelve True si la colección está vacía."""
         return not bool(self._active)
 
-    def __iter__(self) -> Collection:
+    def __iter__(self) -> Iterator[Collection[CollectionEntity]]:
         """Itera sobre las entidades activas de la colección.
 
         No devuelve el elemento de por sí, sino otra colección de un solo
@@ -184,7 +184,7 @@ class Collection(Generic[CollectionEntity]):
         for iid, _ in self._active:
             yield self._subset([iid], self._iid)
 
-    def sort(self, *args: str, reverse: bool = False) -> Collection:
+    def sort(self, *args: str, reverse: bool = False) -> Iterator[Collection[CollectionEntity]]:
         """Ordena las entidades de la colección.
 
         Se pueden pasar varios atributos para ordenar por ellos, en orden de
@@ -298,7 +298,7 @@ class Collection(Generic[CollectionEntity]):
     # Métodos de consulta, filtrado y búsqueda
     def search(
         self, *args: object | Callable[[CollectionEntity], bool], **kwargs: Any
-    ) -> Collection | None:
+    ) -> Collection | Iterator[None]:
         """Busca entidades de acuerdo a las condiciones indicadas.
 
         La forma estándar de usar este método es indicando los atributos a
@@ -320,7 +320,8 @@ class Collection(Generic[CollectionEntity]):
         después de la primera función.
 
         Devuelve una nueva colección derivada sólo con las entidades que
-        cumplen las condiciones, o None, si la colección está vacía.
+        cumplen las condiciones, o un iterador vacío, si la colección está
+        vacía.
 
         """
         # Dividiendo argumentos posicionales en funciones y valores
@@ -349,11 +350,11 @@ class Collection(Generic[CollectionEntity]):
                     return res
         else:
             for attr, value in kwargs.items():
-                filters.append(lambda entity: getattr(entity, attr) == value)
+                filters.append(lambda e, a=attr, v=value: getattr(e, a) == v)
             entities = [iid for iid, entity in self._active if all(f(entity) for f in filters)]
             if entities:
                 return self._subset(entities, self._iid)
-        return None
+        return ()
 
     def get(
         self, *args: object | Callable[[CollectionEntity], bool], **kwargs: Any
