@@ -745,3 +745,5 @@ class MarxAdapter:
                     cursor.execute(f"DELETE FROM tbl_r_trans WHERE r_exp_id = {event.rid}")
                 else:
                     cursor.execute(f"DELETE FROM tbl_trans WHERE exp_id = {event.rid}")
+
+        return path

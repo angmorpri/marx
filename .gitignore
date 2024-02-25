@@ -4,6 +4,7 @@ res/
 output/
 out/
 testing.py
+*.lnk
 
 
 # Byte-compiled / optimized / DLL files

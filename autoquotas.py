@@ -9,50 +9,52 @@ sys.path.append(os.path.dirname(MARX_DIR))
 
 
 import time
+from datetime import datetime
+from pathlib import Path
 
 from marx.automation import Distribution
 from marx.model import MarxAdapter
-from marx.util import get_most_recent_db
+from marx.util import get_most_recent_db, parse_auto_cfg
 
 
-DISTROS = [
-    {
-        "target": "@Básicos",
-        "ratio": 50,
-        "category": "T11",
-        "concept": "Cuota mensual",
-        "details": "(50%)",
-    },
-    {
-        "target": "@Personales",
-        "ratio": 30,
-        "category": "T11",
-        "concept": "Cuota mensual",
-        "details": "(30%)",
-    },
-    {
-        "target": "@Reserva",
-        "ratio": 20,
-        "category": "T11",
-        "concept": "Cuota mensual",
-        "details": "(20%)",
-    },
-]
+CFG_PATH = Path(__file__).parent / "config" / "autoq.cfg"
 
 
 if __name__ == "__main__":
+    print("[AUTO CUOTAS MENSUALES]")
     path = get_most_recent_db("G:/Mi unidad/MiBilletera Backups")
-    print(">>> Usando: ", path)
-    time.sleep(1)
-
+    print("Usando: ", path)
+    time.sleep(0.25)
     adapter = MarxAdapter(path)
     adapter.load()
 
-    d = Distribution(adapter)
-    d.source = "@Ingresos"
-    for distro in DISTROS:
-        d.sinks.new(**distro)
-    d.check(show=True)
-    d.run()
+    # Fecha
+    date = None
+    while not date:
+        date = input("Fecha de los eventos (formato dd/mm/yyyy): ")
+        if not date:
+            date = datetime.now()
+        else:
+            try:
+                date = datetime.strptime(date, "%d/%m/%Y")
+            except ValueError:
+                print("Fecha inválida")
 
-    adapter.save(prefix="AUTOQ")
+    # Configuración
+    source, amount, ratio, sinks = parse_auto_cfg(CFG_PATH)
+
+    # Distribución
+    d = Distribution(adapter)
+    d.source = source
+    if amount:
+        d.source.amount = amount
+    if ratio:
+        d.source.ratio = ratio
+    for sink in sinks:
+        d.sinks.new(**sink)
+    d.check(show=True)
+    d.run(date=date)
+
+    # Guardar
+    path = adapter.save(prefix="AUTOQ")
+    print(f"Distribución realizada y resultado almacenado en {path!s}")
