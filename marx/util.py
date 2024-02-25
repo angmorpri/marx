@@ -60,7 +60,7 @@ def get_most_recent_db(db_dir: str | Path, *, allow_prefixes: bool = True) -> Pa
     return choice
 
 
-def parse_auto_cfg(path: str | Path) -> dict[str, str]:
+def parse_auto_cfg(path: str | Path) -> tuple[str, float | None, float | None, list[dict]]:
     """Lee el archivo de configuración automática y devuelve un diccionario."""
     ERROR = "Error parseando el archivo de configuración:"
     parser = configparser.RawConfigParser()
