@@ -1,3 +1,11 @@
+# Personal
+notes/
+res/
+output/
+out/
+testing.py
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

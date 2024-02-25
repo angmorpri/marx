@@ -8,11 +8,16 @@ MARX_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__) + "/marx"))
 sys.path.append(os.path.dirname(MARX_DIR))
 
 
+import configparser
 import time
+from pathlib import Path
 
 from marx.automation import Distribution
 from marx.model import MarxAdapter
 from marx.util import get_most_recent_db
+
+
+CFG_PATH = Path(__file__).parent / "autoi.cfg"
 
 
 DISTROS = [
