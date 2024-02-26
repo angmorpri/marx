@@ -10,9 +10,9 @@ contabilidad.
 
 import configparser
 import re
-from collections import defaultdict
+from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 from PyPDF2 import PdfReader, PageObject
 
@@ -21,8 +21,9 @@ from marx.model import MarxAdapter
 
 DEFAULT_CFG = Path(__file__).parent.parent.parent / "config" / "wage.cfg"
 
-FILENAME_PATTERN = r"\d{2}-\{4}(-[A-Za-z])?\.pdf"
 CONCEPT_LN_PATTERN = r"^(?:\d\d-\d\d|BENEF ).*"
+FILENAME_PATTERN = r"\d{2}-\d{4}(-[A-Za-z])?\.pdf"
+TOTAL_LN_PATTERN = r"^\*+([0-9]+\.)?[0-9]+,[0-9]+$"
 
 ERROR = "Error parseando nómina:"
 
@@ -46,28 +47,40 @@ class WageParser:
         self.adapter.load()
         self.cfg_path = cfg_path
 
-    def most_recent(self, dir: str | Path) -> Path:
-        """Ubica el archivo más reciente en el directorio 'dir'."""
-        current_value = (0, 0, 0)
-        winner = None
+    # Búsqueda e iteración de archivos
+
+    def iter_all(self, dir: str | Path) -> Iterator[Path]:
+        """Itera sobre todos los archivos en el directorio 'dir' que tengan
+        formato válido para ser nóminas.
+
+        """
         for item in Path(dir).iterdir():
             if item.is_dir():
                 for file in item.iterdir():
                     try:
-                        value = self.parse_filename(file.name)
+                        self.parse_filename(file.name)
                     except ValueError:
                         continue
+                    yield file
             else:
                 try:
-                    value = self.parse_filename(item.name)
+                    self.parse_filename(item.name)
                 except ValueError:
                     continue
-            if value > current_value:
-                current_value = value
-                winner = item
-        if not winner:
+                yield item
+
+    def most_recent(self, dir: str | Path) -> Path:
+        """Ubica el archivo más reciente en el directorio 'dir'."""
+        choice = None
+        top_date = (1901, 1, 1)
+        for file in self.iter_all(dir):
+            value = self.parse_filename(file.name)
+            if value > top_date:
+                top_date = value
+                choice = file
+        if not choice:
             raise FileNotFoundError(f"{ERROR} No se encontró ningún archivo válido.")
-        return winner
+        return choice
 
     def parse_filename(self, filename: str) -> tuple[int, int, int]:
         """Comprueba que el nombre de archivo es válido, y extrae de éste un
@@ -75,37 +88,106 @@ class WageParser:
         reciente.
 
         """
-        match = re.fullmatch(FILENAME_PATTERN, filename)
+        match = re.match(FILENAME_PATTERN, filename)
         if not match:
             raise ValueError(f"{ERROR} Nombre de archivo inválido.")
-        month, year, *extra = filename.stem.split("-")
+        month, year, *extra = filename.replace(".pdf", "").split("-")
         return (int(year), int(month), 1 if extra else 0)
 
-    def parse(self, path: str | Path) -> None:
-        """Parsea el archivo PDF y añade los eventos a la base de datos."""
+    def parse(
+        self, path: str | Path, *, date: str | datetime | None = None, verbose: bool = False
+    ) -> None:
+        """Parsea el archivo PDF y añade los eventos a la base de datos.
+
+        Comprueba que el parseo ha sido correcto comparando la suma de los
+        resultados individuales con el total a ingresar extraído del PDF.
+
+        Por defecto, los eventos generados llevarán la fecha del día en que se
+        ejecuta el método. Si se quiere especificar una fecha distinta, se
+        puede hacer mediante el parámetro 'date', que admite un string con el
+        formato "YYYY-MM-DD" o un objeto datetime.
+
+        Para mostrar información detallada sobre el proceso de parseo, se puede
+        activar el parámetro 'verbose'.
+
+        """
         # Comprobaciones del archivo
         if isinstance(path, str):
             path = Path(path)
         if not path.exists():
             raise FileNotFoundError(f"{ERROR} No se encontró el archivo {path!s}")
-        y, m, x = self.parse_filename(path.name)
+        _, month, _ = self.parse_filename(path.name)
+
+        # Fecha
+        if not date:
+            date = datetime.now()
+        elif isinstance(date, str):
+            date = datetime.strptime(date, "%Y-%m-%d")
+
+        # Cargando configuración
+        cfg_events, cfg_extra = self.parse_config()
+        match_to_key = {}
+        for key, value in cfg_extra.items():
+            for match in value["match"]:
+                match_to_key[match] = key
 
         # Lectura del archivo y extracción de datos
         reader = PdfReader(path)
-        wage = defaultdict(float)
+        wage = {key: 0.0 for key in cfg_events}
+        irpf = None
+        parsed_total = None
         for page in reader.pages:
-            partial_wage, irpf = self.parse_page(page)
+            partial_wage, new_irpf, new_total = self.parse_page(page, match_to_key)
             for concept, value in partial_wage.items():
                 wage[concept] += value
+            irpf = irpf or new_irpf
+            parsed_total = parsed_total or new_total
 
-        # [TEST] Mostrar resultados
-        print(f"Fecha: {y}-{m:02d} ({'extra' if x else 'normal'})")
-        for concept, value in wage.items():
-            print(f"+ {concept}: {value}")
-        print(f"IRPF: {irpf}")
+        # Comprobaciones
+        calc_total = 0.0
+        for key, amount in wage.items():
+            calc_total += amount * cfg_extra[key]["flow"]
+        if abs(calc_total - parsed_total) > 0.02:
+            raise ValueError(
+                f"{ERROR} La suma de los conceptos no coincide con el total a ingresar:"
+                f" calculado = {calc_total:.2f}, extraído = {parsed_total:.2f}"
+            )
 
-    def parse_page(self, page: PageObject) -> tuple[defaultdict, float]:
-        """Extrae los datos de la página del PDF."""
+        # Sustitución de valores dinámicos
+        whyextra = "quién sabe"
+        if month in (6, 7, 8):
+            whyextra = "verano"
+        elif month in (11, 12, 1):
+            whyextra = "Navidad"
+        elif month in (2, 3):
+            whyextra = "beneficios"
+        changes = {"pct": f"{irpf/100:.2%}".replace(".", ","), "whyextra": whyextra}
+
+        # Creación de eventos
+        for key in sorted(cfg_extra, key=lambda k: cfg_extra[k]["order"]):
+            amount = wage[key]
+            if amount == 0:
+                continue
+            params = cfg_events[key].copy()
+            for param in params:
+                if isinstance(params[param], str):
+                    for change, new in changes.items():
+                        params[param] = params[param].replace(f"${change}$", new)
+            params["date"] = date
+            params["amount"] = amount
+            event = self.adapter.suite.events.new(id=-1, **params)
+            if verbose:
+                print(f"Evento creado: {event!s} || {event.details}")
+
+    def parse_page(
+        self, page: PageObject, match_to_key: dict[str, str]
+    ) -> tuple[dict[str, float], float, float]:
+        """Extrae los datos de la página del PDF.
+
+        Devuelve un diccionario con las cantidades de los conceptos
+        identificados, junto con el porcentaje de IRPF y el total a ingresar.
+
+        """
         text = page.extract_text()
 
         # % de IRPF de este mes
@@ -116,7 +198,28 @@ class WageParser:
                 break
             irpf = line == "MADRID"
 
-        # Conceptos y valores
+        # Total a ingresar
+        total = 0.0
+        for line in text.split("\n"):
+            if re.match(TOTAL_LN_PATTERN, line):
+                total = float(line.strip("*").replace(".", "").replace(",", "."))
+
+        # Procesado de las líneas del PDF
+        wage = {key: 0.0 for key in match_to_key.values()}
+        for line in re.findall(CONCEPT_LN_PATTERN, text, re.MULTILINE):
+            if not ". ." in line:
+                raw_value = []
+                for char in reversed(line.strip()):
+                    if char not in "0123456789,.":
+                        break
+                    char = char.replace(".", "").replace(",", ".")
+                    raw_value.append(char)
+                value = float("".join(reversed(raw_value)))
+                for match, key in match_to_key.items():
+                    if match is None or match in line:
+                        wage[key] += value
+                        break
+        return wage, irpf, total
 
     def parse_config(self) -> tuple[dict[str, Any], dict[str, Any]]:
         """Parsea el archivo de configuración donde se indica cómo construir
@@ -135,18 +238,18 @@ class WageParser:
             # Extra
             extra[section] = {}
             try:
-                extra[section]["match"] = parser.get(section, "match")
+                matches = parser.get(section, "match").split(",")
+                extra[section]["match"] = [match.strip(" ").strip('"') for match in matches]
             except configparser.NoOptionError:
                 if section == "default":
-                    extra[section]["match"] = None
+                    extra[section]["match"] = [None]
                 else:
                     raise ValueError(f"{ERROR} No se ha especificado 'match' en {section}")
             extra[section]["flow"] = parser.getint(section, "flow", fallback=-1)
+            extra[section]["order"] = parser.getint(section, "order", fallback=1000)
             # Eventos
             events[section] = {}
             acc_income = self.adapter.suite.accounts["Ingresos"].entity
-            if "details" not in parser.options(section):
-                events[section]["details"] = ""
             if "orig" not in parser.options(section) and "dest" not in parser.options(section):
                 raise ValueError(f"{ERROR} No se ha especificado 'orig' o 'dest' en {section}")
             if "orig" in parser.options(section) and "dest" in parser.options(section):
@@ -155,5 +258,45 @@ class WageParser:
                 )
             if "orig" in parser.options(section):
                 events[section]["dest"] = acc_income
+                orig = parser.get(section, "orig").strip('"')
+                if orig.startswith("@"):
+                    events[section]["orig"] = self.adapter.suite.accounts[orig[1:]].entity
+                else:
+                    events[section]["orig"] = orig
             if "dest" in parser.options(section):
                 events[section]["orig"] = acc_income
+                dest = parser.get(section, "dest").strip('"')
+                if dest.startswith("@"):
+                    events[section]["dest"] = self.adapter.suite.accounts[dest[1:]].entity
+                else:
+                    events[section]["dest"] = dest
+            try:
+                cat_code = parser.get(section, "category")
+                events[section]["category"] = self.adapter.suite.categories[cat_code].entity
+            except configparser.NoOptionError:
+                raise ValueError(f"{ERROR} No se ha especificado 'category' en {section}")
+            try:
+                concept = parser.get(section, "concept")
+                events[section]["concept"] = concept.strip('"')
+            except configparser.NoOptionError:
+                raise ValueError(f"{ERROR} No se ha especificado 'concept' en {section}")
+            if "details" in parser.options(section):
+                events[section]["details"] = parser.get(section, "details", fallback="").strip('"')
+        return events, extra
+
+    def _parsing_test(self, path: str | Path):
+        """Pruebas de parsing."""
+        # Comprobaciones del archivo
+        if isinstance(path, str):
+            path = Path(path)
+        if not path.exists():
+            raise FileNotFoundError(f"{ERROR} No se encontró el archivo {path!s}")
+
+        # Lectura
+        reader = PdfReader(path)
+        for page in reader.pages:
+            text = page.extract_text()
+            for line in text.split("\n"):
+                if re.match(r"^\*+([0-9]+\.)?[0-9]+,[0-9]+$", line):
+                    print(">>>", line)
+        print()
