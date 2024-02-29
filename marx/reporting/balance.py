@@ -3,9 +3,14 @@
 """Módulo para generar informes de balance general de cuentas."""
 
 from datetime import datetime
+from pathlib import Path
+from typing import Literal
 
 from marx.model import MarxDataSuite
 from marx.reporting import TableBuilder
+
+
+INDENT_SIZE = 4
 
 
 class Balance:
@@ -66,3 +71,56 @@ class Balance:
                         target.values[key] += sign * event.amount
 
         return table
+
+    def report(
+        self,
+        table: TableBuilder,
+        format: Literal["text", "csv", "excel"] = "text",
+        output: str | Path | None = None,
+    ) -> Path | None:
+        """Genera un informe de balance general dado un objeto TableBuilder.
+
+        Los formatos válidos son:
+            - "text": texto plano. Si no se proporciona un valor para 'output',
+                el informe se imprimirá en la consola.
+            - "csv": archivo CSV. Requiere un valor para 'output'.
+            - "excel": archivo Excel. Requiere un valor para 'output'.
+
+        Devuelve la ruta del archivo generado, o None si no se generó ningún
+        archivo.
+
+        """
+        if format in ("csv", "excel") and not output:
+            raise ValueError(f"El formato '{format}' requiere un valor para 'output'.")
+
+        if format == "text":
+            _res = []
+            for row in table:
+                _res = self._text_report_line(row, _res, indent_level=0)
+            text = "\n".join(_res)
+            if output:
+                with open(output, "w", encoding="utf-8") as file:
+                    file.write(text)
+                return Path(output)
+            else:
+                print(text)
+                return None
+
+    def _text_report_line(self, node, key, text, indent_level):
+        """Genera una línea de texto para un informe en formato texto."""
+        indent = indent_level * INDENT_SIZE
+        if node.has_children():
+            text.append(f"\n\n{indent}[{node.title}]")
+            for child in node:
+                text = self._text_report_line(child, key, text, indent_level + 1)
+            if not node.has_grandchildren():
+                title = ""
+            else:
+                title = f"Total {node.title.lower()}"
+            text.append(self._balance_line(title, node.values[key], indent_level))
+            if indent_level == 0:
+                text.append("\n-")
+        else:
+            amount = self._amount_line(node.values[key])
+            text.append(...)
+        return text
