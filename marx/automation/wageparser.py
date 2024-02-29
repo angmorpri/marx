@@ -16,7 +16,7 @@ from typing import Any, Iterator
 
 from PyPDF2 import PdfReader, PageObject
 
-from marx.model import MarxAdapter
+from marx.model import MarxDataSuite
 
 
 DEFAULT_CFG = Path(__file__).parent.parent.parent / "config" / "wage.cfg"
@@ -42,9 +42,8 @@ class WageParser:
 
     """
 
-    def __init__(self, adapter: MarxAdapter, *, cfg_path: str | Path = DEFAULT_CFG):
-        self.adapter = adapter
-        self.adapter.load()
+    def __init__(self, data: MarxDataSuite, *, cfg_path: str | Path = DEFAULT_CFG):
+        self.suite = data
         self.cfg_path = cfg_path
 
     # Búsqueda e iteración de archivos
@@ -175,7 +174,7 @@ class WageParser:
                         params[param] = params[param].replace(f"${change}$", new)
             params["date"] = date
             params["amount"] = amount
-            event = self.adapter.suite.events.new(id=-1, **params)
+            event = self.suite.events.new(id=-1, **params)
             if verbose:
                 print(f"Evento creado: {event!s} || {event.details}")
 
@@ -249,7 +248,7 @@ class WageParser:
             extra[section]["order"] = parser.getint(section, "order", fallback=1000)
             # Eventos
             events[section] = {}
-            acc_income = self.adapter.suite.accounts["Ingresos"].entity
+            acc_income = self.suite.accounts["Ingresos"].entity
             if "orig" not in parser.options(section) and "dest" not in parser.options(section):
                 raise ValueError(f"{ERROR} No se ha especificado 'orig' o 'dest' en {section}")
             if "orig" in parser.options(section) and "dest" in parser.options(section):
@@ -260,19 +259,19 @@ class WageParser:
                 events[section]["dest"] = acc_income
                 orig = parser.get(section, "orig").strip('"')
                 if orig.startswith("@"):
-                    events[section]["orig"] = self.adapter.suite.accounts[orig[1:]].entity
+                    events[section]["orig"] = self.suite.accounts[orig[1:]].entity
                 else:
                     events[section]["orig"] = orig
             if "dest" in parser.options(section):
                 events[section]["orig"] = acc_income
                 dest = parser.get(section, "dest").strip('"')
                 if dest.startswith("@"):
-                    events[section]["dest"] = self.adapter.suite.accounts[dest[1:]].entity
+                    events[section]["dest"] = self.suite.accounts[dest[1:]].entity
                 else:
                     events[section]["dest"] = dest
             try:
                 cat_code = parser.get(section, "category")
-                events[section]["category"] = self.adapter.suite.categories[cat_code].entity
+                events[section]["category"] = self.suite.categories[cat_code].entity
             except configparser.NoOptionError:
                 raise ValueError(f"{ERROR} No se ha especificado 'category' en {section}")
             try:

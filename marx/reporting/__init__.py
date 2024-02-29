@@ -7,3 +7,6 @@ datos extraídos por Marx. En concreto, hay dos informes principales que son
 generados por este módulo: el balance de situación y la cuenta de resultados.
 
 """
+
+from .table import TableBuilder
+from .balance import Balance

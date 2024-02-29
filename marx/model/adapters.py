@@ -46,12 +46,12 @@ TABLES = {
     "tbl_transfer": ("transfers", "trans_"),
 }
 
-RawAdapterSuite = namedtuple(
-    "RawAdapterSuite",
+RawDataSuite = namedtuple(
+    "RawDataSuite",
     ["accounts", "categories", "notes", "recurring", "transactions", "transfers"],
 )
 
-MarxAdapterSuite = namedtuple("MarxAdapterSuite", ["accounts", "categories", "notes", "events"])
+MarxDataSuite = namedtuple("MarxDataSuite", ["accounts", "categories", "notes", "events"])
 
 
 class RawAdapter:
@@ -81,7 +81,7 @@ class RawAdapter:
         self.db_path = Path(db_path)
         self.suite = None
 
-    def load(self) -> RawAdapterSuite:
+    def load(self) -> RawDataSuite:
         """Carga los datos de la base de datos.
 
         Devuelve una namedtuple con las colecciones de datos cargadas.
@@ -90,7 +90,7 @@ class RawAdapter:
         if self.suite:
             return self.suite
 
-        self.suite = RawAdapterSuite(
+        self.suite = RawDataSuite(
             accounts=Collection(SimpleNamespace, pkeys=["id"]),
             categories=Collection(SimpleNamespace, pkeys=["id"]),
             notes=Collection(SimpleNamespace, pkeys=["id"]),
@@ -220,7 +220,7 @@ class MarxAdapter:
             self.db_path = Path(source)
         self.suite = None
 
-    def load(self) -> MarxAdapterSuite:
+    def load(self) -> MarxDataSuite:
         """Carga los datos de la base de datos.
 
         Devuelve una namedtuple con las colecciones de datos cargadas.
@@ -230,7 +230,7 @@ class MarxAdapter:
             return self.suite
         raw_suite = self.source.load()
 
-        self.suite = MarxAdapterSuite(
+        self.suite = MarxDataSuite(
             accounts=Collection(Account, pkeys=["id", "name"]),
             categories=Collection(Category, pkeys=["id", "code", "title", "name"]),
             notes=Collection(Note, pkeys=["id"]),

@@ -218,6 +218,8 @@ class TableRow(Node):
 
         """
         if self.values_type == "VALUE":
+            for key in self._values:
+                self._values[key] = round(self._values[key], 2)
             return self._values
         elif self.values_type == "SUM_CHILDREN":
             for key in self._values:

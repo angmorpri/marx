@@ -32,7 +32,7 @@ if __name__ == "__main__":
                 print("Fecha inválida")
 
     # WageParser
-    wp = WageParser(adapter)
+    wp = WageParser(adapter.suite)
     wage = askopenfilename(initialdir=WAGES_DIR)
     wp.parse(wage, date=date, verbose=True)
 

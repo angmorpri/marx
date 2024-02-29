@@ -13,7 +13,7 @@ import random
 import string
 from datetime import datetime
 
-from marx.model import Account, Category, Collection, MarxAdapter
+from marx.model import Account, Category, Collection, MarxDataSuite
 
 
 class DistrSource:
@@ -211,17 +211,16 @@ class Distribution:
         se lanzará un ValueError. Si se proporciona una fecha, se usará esa como
         fecha de los eventos generados; si no, se usará la fecha actual.
 
-    El constructor requiere como parámetro un MarxAdapter para poder acceder a
-    la base de datos.
+    El constructor requiere como parámetro una relación de datos de Marx que se
+    usarán para generar los resultados.
 
     """
 
-    def __init__(self, adapter: MarxAdapter) -> None:
-        self._adapter = adapter
-        self._adapter.load()
-        DistrSource.ACCOUNTS = self._adapter.suite.accounts
-        DistrSink.ACCOUNTS = self._adapter.suite.accounts
-        DistrSink.CATEGORIES = self._adapter.suite.categories
+    def __init__(self, data: MarxDataSuite) -> None:
+        self._suite = data
+        DistrSource.ACCOUNTS = self._suite.accounts
+        DistrSink.ACCOUNTS = self._suite.accounts
+        DistrSink.CATEGORIES = self._suite.categories
 
         self._source = DistrSource()
         self._sinks = Collection(DistrSink, pkeys=["sid"])
@@ -257,13 +256,9 @@ class Distribution:
         to_distr = 0
         if isinstance(self._source.target, Account):
             to_distr = 0
-            for event in self._adapter.suite.events.search(
-                orig=self._source.target, status="closed"
-            ):
+            for event in self._suite.events.search(orig=self._source.target, status="closed"):
                 to_distr -= event.amount
-            for event in self._adapter.suite.events.search(
-                dest=self._source.target, status="closed"
-            ):
+            for event in self._suite.events.search(dest=self._source.target, status="closed"):
                 to_distr += event.amount
             base_total = to_distr
             if self._source.amount is not None:
@@ -314,7 +309,7 @@ class Distribution:
             date = datetime.strptime(date, "%Y-%m-%d")
 
         for sink in self._sinks:
-            self._adapter.suite.events.new(
+            self._suite.events.new(
                 id=-1,
                 date=date,
                 amount=sink.amount,

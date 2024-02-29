@@ -38,7 +38,7 @@ if __name__ == "__main__":
     source, amount, ratio, sinks = parse_auto_cfg(CFG_PATH)
 
     # Distribución
-    d = Distribution(adapter)
+    d = Distribution(adapter.suite)
     d.source = source
     if amount:
         d.source.amount = amount
