@@ -10,6 +10,7 @@ sys.path.append(os.path.dirname(MARX_DIR))
 
 import time
 from datetime import datetime
+from pathlib import Path
 
 from marx.model import MarxAdapter
 from marx.util import get_most_recent_db
@@ -25,8 +26,16 @@ if __name__ == "__main__":
 
     balance = Balance(adapter.suite)
     table = balance.build(
+        datetime(2020, 1, 1),
+        datetime(2020, 7, 1),
+        datetime(2021, 1, 1),
+        datetime(2021, 7, 1),
         datetime(2022, 1, 1),
+        datetime(2022, 7, 1),
         datetime(2023, 1, 1),
+        datetime(2023, 7, 1),
         datetime(2024, 1, 1),
     )
-    print(table)
+    output = Path(__file__).parent.parent / "out" / "balance-2020-2024.txt"
+    out = balance.report(table, output=output)
+    print(">>>", out)

@@ -4,12 +4,13 @@
 
 from datetime import datetime
 from pathlib import Path
-from typing import Literal
+from typing import Iterable, Literal
 
 from marx.model import MarxDataSuite
-from marx.reporting import TableBuilder
+from marx.reporting import TableBuilder, TableRow
 
 
+AMOUNT_PADDING = 50
 INDENT_SIZE = 4
 
 
@@ -70,6 +71,16 @@ class Balance:
                     if event.date <= datelimit:
                         target.values[key] += sign * event.amount
 
+        table.append("Pasivos", values="SUM_CHILDREN")
+        table["Pasivos"].append("Deudas")
+
+        table.append("PN", "Patrimonio neto", values="SUM_CHILDREN")
+        table["PN"].append("Capital")
+        for key, datelimit in timetable.items():
+            table["PN"]["Capital"].values[key] = (
+                table["Activos"].values[key] - table["Pasivos"].values[key]
+            )
+
         return table
 
     def report(
@@ -94,10 +105,11 @@ class Balance:
             raise ValueError(f"El formato '{format}' requiere un valor para 'output'.")
 
         if format == "text":
-            _res = []
-            for row in table:
-                _res = self._text_report_line(row, _res, indent_level=0)
-            text = "\n".join(_res)
+            headers = "  |".join(f"{header:>12}" for header in table.headers)
+            text = [" " * AMOUNT_PADDING + headers]
+            for node in table:
+                text = self._text_report_line(node, text, 0)
+            text = "\n".join(text)
             if output:
                 with open(output, "w", encoding="utf-8") as file:
                     file.write(text)
@@ -106,21 +118,39 @@ class Balance:
                 print(text)
                 return None
 
-    def _text_report_line(self, node, key, text, indent_level):
+    def _text_report_line(self, node: TableRow, text: list[str], indent_level: int) -> list[str]:
         """Genera una línea de texto para un informe en formato texto."""
         indent = indent_level * INDENT_SIZE
         if node.has_children():
-            text.append(f"\n\n{indent}[{node.title}]")
+            text.append(f"\n{indent * ' '}[{node.title}]")
             for child in node:
-                text = self._text_report_line(child, key, text, indent_level + 1)
-            if not node.has_grandchildren():
-                title = ""
-            else:
+                text = self._text_report_line(child, text, indent_level + 1)
+            if node.has_grandchildren() or indent_level == 0:
                 title = f"Total {node.title.lower()}"
-            text.append(self._balance_line(title, node.values[key], indent_level))
+                jumps = 1
+            else:
+                title = ""
+                jumps = 0
+            text.append(self._balance_line(title, node.values.values(), indent_level, jumps))
             if indent_level == 0:
                 text.append("\n-")
         else:
-            amount = self._amount_line(node.values[key])
-            text.append(...)
+            text.append(self._balance_line(node.title, node.values.values(), indent_level))
         return text
+
+    def _balance_line(
+        self, title: str, values: Iterable[float], indent_level: int, jumps: int = 0
+    ) -> str:
+        """Genera una línea de balance para un informe en formato texto."""
+        sep = "." if title else " "
+        indent = indent_level * INDENT_SIZE
+        padding = AMOUNT_PADDING - indent
+        amounts = []
+        for value in values:
+            amounts.append(f"{self._amount_line(value):{sep}>10} €")
+        amounts = (sep * 3).join(amounts)
+        return ("\n" * jumps) + f"{indent * ' '}{title:{sep}<{padding}}{amounts}"
+
+    def _amount_line(self, value: float) -> str:
+        """Genera una línea de cantidad para un informe en formato texto."""
+        return f"{value:>,.2f}".replace(",", " ").replace(".", ",")

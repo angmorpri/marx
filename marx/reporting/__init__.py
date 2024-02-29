@@ -8,5 +8,5 @@ generados por este módulo: el balance de situación y la cuenta de resultados.
 
 """
 
-from .table import TableBuilder
+from .table import TableBuilder, TableRow
 from .balance import Balance
