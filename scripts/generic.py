@@ -36,6 +36,8 @@ if __name__ == "__main__":
         datetime(2023, 7, 1),
         datetime(2024, 1, 1),
     )
-    output = Path(__file__).parent.parent / "out" / "balance-2020-2024.txt"
-    out = balance.report(table, output=output)
+    output = Path(__file__).parent.parent / "out" / "balance-2020-2024.xlsx"
+    if output.exists():
+        output.unlink()
+    out = balance.report(table, format="excel", output=output)
     print(">>>", out)

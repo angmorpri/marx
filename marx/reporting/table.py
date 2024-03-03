@@ -259,16 +259,27 @@ class TableBuilder(Node):
             return self[id]
         return TableRow(self, id, *args, **kwargs)
 
-    def _ln(self, node: Node, output: list[str]) -> list[str]:
-        output.append(str(node))
+    def __iter__(self) -> Iterable[TableRow]:
+        """Devuelve un iterador sobre las filas de la tabla, iterando también
+        sobre toda la descendencia de sus nodos hijos, si los tiene.
+
+        """
+        node_list = []
+        for child in sorted(self.children, key=lambda node: node.order_key):
+            node_list = self._add_node(child, node_list)
+        return iter(node_list)
+
+    def _add_node(self, node: Node, node_list: list[Node]) -> list[Node]:
+        """Añade un nodo y toda su descendencia a una lista."""
+        node_list.append(node)
         for child in node:
-            output = self._ln(child, output)
-        return output
+            node_list = self._add_node(child, node_list)
+        return node_list
 
     def __str__(self) -> str:
         s = [f"Tabla: {self.title}"]
-        for child in self:
-            s = self._ln(child, s)
+        for node in self:
+            s.append(str(node))
         return "\n".join(s)
 
 

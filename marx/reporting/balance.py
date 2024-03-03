@@ -8,6 +8,7 @@ from typing import Iterable, Literal
 
 from marx.model import MarxDataSuite
 from marx.reporting import TableBuilder, TableRow
+from marx.reporting.excel import Excel, CellID
 
 
 AMOUNT_PADDING = 50
@@ -88,6 +89,8 @@ class Balance:
         table: TableBuilder,
         format: Literal["text", "csv", "excel"] = "text",
         output: str | Path | None = None,
+        *,
+        sheet: int | str = 0,
     ) -> Path | None:
         """Genera un informe de balance general dado un objeto TableBuilder.
 
@@ -95,7 +98,9 @@ class Balance:
             - "text": texto plano. Si no se proporciona un valor para 'output',
                 el informe se imprimirá en la consola.
             - "csv": archivo CSV. Requiere un valor para 'output'.
-            - "excel": archivo Excel. Requiere un valor para 'output'.
+            - "excel": archivo Excel. Requiere un valor para 'output' y,
+                opcionalmente, un valor para 'sheet' que puede ser el índice de
+                la página (empezando por 0) o el nombre de la página.
 
         Devuelve la ruta del archivo generado, o None si no se generó ningún
         archivo.
@@ -117,7 +122,36 @@ class Balance:
             else:
                 print(text)
                 return None
+        elif format == "excel":
+            # Primero, a cada nodo se le asigna una fila, que será aquélla en
+            # la que le tocará escribir sus valores.
+            for row, node in enumerate(table, start=2):
+                node.row = row
+            excel = Excel(output)
+            excel.select_sheet(sheet)
+            # Cabeceras
+            pointer = excel.pointer(at="B1")
+            for header in table.headers:
+                pointer.value = header
+                pointer.right()
+            # Contenido
+            pointer.goto("A2")
+            for node in table:
+                pointer.value = node.title
+                vp = pointer.copy()
+                for col, header in enumerate(table.headers, start=2):
+                    vp.right()
+                    if node.values_type == "VALUE":
+                        vp.value = node.values[header]
+                    elif node.values_type == "SUM_CHILDREN":
+                        sum_cells = [CellID((col, child.row)) for child in node]
+                        vp.value = excel.compose_formula("SUM", sum_cells)
+                pointer.down()
+            excel.save()
+            excel.close()
+            return output
 
+    # Métodos para reporte en formato texto
     def _text_report_line(self, node: TableRow, text: list[str], indent_level: int) -> list[str]:
         """Genera una línea de texto para un informe en formato texto."""
         indent = indent_level * INDENT_SIZE
