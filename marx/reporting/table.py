@@ -173,9 +173,9 @@ class TableRow(Node):
     """Clase que representa una fila de una tabla de datos.
 
     Se compone de un título ('title') y de un diccionario de valores ('values')
-    que, en función del tipo de valor que almacene la fila ('values_type'),
-    pueden ser datos directos, o agregaciones de datos de otras filas. Las
-    opciones son:
+    que, en función del tipo de valor que almacene la fila ('formula'), pueden
+    ser datos directos, o agregaciones de datos de otras filas. Las opciones
+    son:
 
         - "VALUE": los valores son datos directos.
         - "SUM_CHILDREN": los valores son la suma de los valores de sus nodos
@@ -205,7 +205,7 @@ class TableRow(Node):
     ):
         super().__init__(parent, id, order_key=order_key)
         self.title = title or id
-        self.values_type = values
+        self.formula = values
         self._values = {key: 0 for key in parent.master.headers}
 
     @property
@@ -217,14 +217,14 @@ class TableRow(Node):
         del diccionario, para que no se puedan modificar sus valores.
 
         """
-        if self.values_type == "VALUE":
+        if self.formula == "VALUE":
             for key in self._values:
                 self._values[key] = round(self._values[key], 2)
             return self._values
-        elif self.values_type == "SUM_CHILDREN":
+        elif self.formula == "SUM_CHILDREN":
             for key in self._values:
                 self._values[key] = round(sum(child.values[key] for child in self.children), 2)
-        elif self.values_type == "SUM_SIBLINGS":
+        elif self.formula == "SUM_SIBLINGS":
             for key in self._values:
                 self._values[key] = round(sum(sibling.values[key] for sibling in self.siblings), 2)
         return MappingProxyType(self._values)

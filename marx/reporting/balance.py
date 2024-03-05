@@ -128,24 +128,24 @@ class Balance:
             for row, node in enumerate(table, start=2):
                 node.row = row
             excel = Excel(output)
-            excel.select_sheet(sheet)
+            excel.sheets[sheet].select()
             # Cabeceras
             pointer = excel.pointer(at="B1")
             for header in table.headers:
-                pointer.value = header
+                pointer.cell.value = header
                 pointer.right()
             # Contenido
             pointer.goto("A2")
             for node in table:
-                pointer.value = node.title
+                pointer.cell.value = node.title
                 vp = pointer.copy()
                 for col, header in enumerate(table.headers, start=2):
                     vp.right()
-                    if node.values_type == "VALUE":
-                        vp.value = node.values[header]
-                    elif node.values_type == "SUM_CHILDREN":
+                    if node.formula == "VALUE":
+                        vp.cell.value = node.values[header]
+                    elif node.formula == "SUM_CHILDREN":
                         sum_cells = [CellID((col, child.row)) for child in node]
-                        vp.value = excel.compose_formula("SUM", sum_cells)
+                        vp.cell.value = excel.compose_formula("SUM", sum_cells)
                 pointer.down()
             excel.save()
             excel.close()
