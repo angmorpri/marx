@@ -56,7 +56,7 @@ class Balance:
                     t2 = event.category.title
                     t2_order = event.category.code
                     t3 = event.concept
-                elif account.name in ("Ahorro", "Reserva"):
+                elif account.name in ("Hucha", "Reserva"):
                     t1 = "COR"
                     t2 = "Ahorro y Reserva"
                     t2_order = 2

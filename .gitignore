@@ -3,6 +3,7 @@ notes/
 res/
 output/
 out/
+local/
 testing.py
 *.lnk
 
