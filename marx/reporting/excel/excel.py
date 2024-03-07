@@ -9,7 +9,6 @@ con una hoja de cálculo de Excel real.
 
 """
 from __future__ import annotations
-from email.mime import base
 
 from pathlib import Path
 from typing import Any
@@ -17,6 +16,8 @@ from typing import Any
 import openpyxl
 from openpyxl.cell.cell import Cell as OpenpyxlCell
 from openpyxl.worksheet.worksheet import Worksheet as OpenpyxlSheet
+
+from marx.reporting.excel.styles import CellStyle
 
 
 CellIDLike = str | tuple[int, int]
@@ -31,7 +32,7 @@ class Sheet:
     def __init__(self, base: Excel, sheet: OpenpyxlSheet) -> None:
         self._base = base
         self._sheet = sheet
-        self._cells = {}
+        self.cells = {}
 
     @property
     def raw(self) -> OpenpyxlSheet:
@@ -77,9 +78,9 @@ class Sheet:
 
     def __getitem__(self, key: CellIDLike | CellID) -> Cell:
         id = CellID(key)
-        if id not in self._cells:
-            self._cells[id] = Cell(id, self.raw[id.as_str()])
-        return self._cells[id]
+        if id not in self.cells:
+            self.cells[id] = Cell(id, self.raw[id.as_str()])
+        return self.cells[id]
 
     def __str__(self):
         return f"Sheet({self.title})"
@@ -189,10 +190,15 @@ class CellID:
 class Cell:
     """Clase que representa una celda en una hoja de cálculo Excel."""
 
-    def __init__(self, id: CellID, cell: OpenpyxlCell) -> None:
+    def __init__(self, id: CellID, cell: OpenpyxlCell, style: CellStyle | None = None) -> None:
         self.id = id
         self._cell = cell
-        # self.style = Style()
+        self.style = style or CellStyle()
+
+    @property
+    def raw(self) -> OpenpyxlCell:
+        """Devuelve la celda como un objeto openpyxl."""
+        return self._cell
 
     @property
     def value(self) -> Any:
@@ -226,7 +232,7 @@ class CellPointer:
     @property
     def cell(self) -> Cell:
         """Devuelve la celda apuntada por el puntero."""
-        return self._sheet._cells[self._current]
+        return self._sheet.cells[self._current]
 
     @property
     def value(self) -> Any:
@@ -237,6 +243,16 @@ class CellPointer:
     def value(self, value: Any) -> None:
         """Modifica el valor de la celda apuntada por el puntero."""
         self.cell.value = value
+
+    @property
+    def row(self) -> int:
+        """Devuelve el número de fila de la celda apuntada por el puntero."""
+        return self._current.as_tuple()[1]
+
+    @property
+    def column(self) -> int:
+        """Devuelve el número de columna de la celda apuntada por el puntero."""
+        return self._current.as_tuple()[0]
 
     # Movimientos
     def up(self, steps: int = 1) -> CellPointer:
@@ -336,6 +352,15 @@ class Excel:
     def pointer(self, at: CellIDLike | CellID) -> CellPointer:
         """Crea un puntero a una celda en la página actual."""
         return CellPointer(self.current_sheet, CellID(at))
+
+    # Estilos
+    def stylize(self) -> None:
+        """Aplica los estilos asignados a cada una de las celdas creadas."""
+        for sheet in self.sheets:
+            print(">>>", sheet.title, len(sheet.cells))
+            for cell in sheet.cells.values():
+                print(">>>>>>", sheet.title, cell.id.as_str(), cell.style)
+                cell.style.apply(cell)
 
     # Utilidades y herramientas
     def compose_formula(self, formula: str, cells: list[CellIDLike | CellID]) -> str:

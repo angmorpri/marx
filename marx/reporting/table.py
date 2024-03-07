@@ -174,14 +174,23 @@ class TableRow(Node):
 
     Se compone de un título ('title') y de un diccionario de valores ('values')
     que, en función del tipo de valor que almacene la fila ('formula'), pueden
-    ser datos directos, o agregaciones de datos de otras filas. Las opciones
-    son:
+    ser datos directos, o agregaciones de datos de otras filas.
 
-        - "VALUE": los valores son datos directos.
-        - "SUM_CHILDREN": los valores son la suma de los valores de sus nodos
-            hijos.
-        - "SUM_SIBLINGS": los valores son la suma de los valores de sus nodos
-            hermanos.
+    Existen tres tipos de fórmulas aceptables:
+
+        - None: opción por defecto, los valores son datos directos.
+
+        - Operaciones predefinidas: se preceden de '@', y son operaciones
+            típicas de agregación de datos entre nodos de la tabla.
+            * "@SUM_CHILDREN": los valores son la suma de los valores de sus
+                nodos hijos.
+            * "@SUM_SIBLINGS": los valores son la suma de los valores de sus
+                nodos hermanos.
+
+        - Operaciones libres: cualquier otra cadena que no comience por '@'
+            se considerará una fórmula libre, que admite cualquier operación
+            que sería admitible por una fórmula de Excel. Para hacer referencia
+            a nodos de la tabla, se utilizará el ID del nodo entre llaves '{}'.
 
     Además, hereda de 'Node' para permitir la jerarquización de las filas de la
     tabla.
@@ -200,12 +209,12 @@ class TableRow(Node):
         id: str,
         title: str | None = None,
         *,
-        values: Literal["VALUE", "SUM_CHILDREN", "SUM_SIBLINGS"] = "VALUE",
+        formula: None | str = None,
         order_key: Any = None,
     ):
         super().__init__(parent, id, order_key=order_key)
         self.title = title or id
-        self.formula = values
+        self.formula = formula
         self._values = {key: 0 for key in parent.master.headers}
 
     @property
@@ -214,19 +223,24 @@ class TableRow(Node):
         gestiona.
 
         En caso de no gestionar valores directamente, se devolverá una vista
-        del diccionario, para que no se puedan modificar sus valores.
+        del diccionario, para que no se puedan modificar.
 
         """
-        if self.formula == "VALUE":
+        if self.formula is None:
             for key in self._values:
                 self._values[key] = round(self._values[key], 2)
             return self._values
-        elif self.formula == "SUM_CHILDREN":
+        elif self.formula == "@SUM_CHILDREN":
             for key in self._values:
                 self._values[key] = round(sum(child.values[key] for child in self.children), 2)
-        elif self.formula == "SUM_SIBLINGS":
+        elif self.formula == "@SUM_SIBLINGS":
             for key in self._values:
                 self._values[key] = round(sum(sibling.values[key] for sibling in self.siblings), 2)
+        elif self.formula.startswith("@"):
+            raise ValueError(f"Fórmula predefinida no reconocida: '{self.formula}'")
+        else:
+            # TODO: Implementar fórmulas libres
+            pass
         return MappingProxyType(self._values)
 
     def __str__(self) -> str:
@@ -285,7 +299,7 @@ class TableBuilder(Node):
 
 if __name__ == "__xmain__":
     table = TableBuilder(["A", "B", "C"])
-    table.append("Frutas", values="SUM_CHILDREN")
+    table.append("Frutas", formula="@SUM_CHILDREN")
     f = table["Frutas"].append("Manzana")
     table["Frutas"].append("Pera")
     f.values["A"] = 10
@@ -294,7 +308,7 @@ if __name__ == "__xmain__":
     table["Frutas"]["Pera"].values["A"] = 5
     table["Frutas"]["Pera"].values["B"] = 50
     table["Frutas"]["Pera"].values["C"] = 500
-    table.append("Verduras", values="SUM_CHILDREN")
+    table.append("Verduras", formula="@SUM_CHILDREN")
     f = table["Frutas"].append("Manzana")
     f.values["B"] += 1000
     print(table)
@@ -313,10 +327,10 @@ if __name__ == "__main__":
         events.append({"account": acc, flows[0]: acc, flows[1]: "Contraparte", "amount": amount})
 
     table = TableBuilder(["A", "B", "C"])
-    table.append("Activos", values="SUM_CHILDREN")
-    table["Activos"].append("COR", "Corrientes", values="SUM_CHILDREN")
-    table["Activos"].append("FIN", "Financieros", values="SUM_CHILDREN")
-    table.append("Pasivos", values="SUM_CHILDREN")
+    table.append("Activos", formula="@SUM_CHILDREN")
+    table["Activos"].append("COR", "Corrientes", formula="@SUM_CHILDREN")
+    table["Activos"].append("FIN", "Financieros", formula="@SUM_CHILDREN")
+    table.append("Pasivos", formula="@SUM_CHILDREN")
     for event in events:
         account = event["account"]
         if account == event["orig"]:
@@ -327,8 +341,8 @@ if __name__ == "__main__":
         if account == "Inversión":
             category = random.choice(["Planes de pensiones", "Fondos indexados"])
             concept = random.choice(["Mi plan", "Mi fondo"])
-            table["FIN"].append(category, values="SUM_CHILDREN")
-            target = table["FIN"][category].append(concept, values="VALUE")
+            table["FIN"].append(category, formula="@SUM_CHILDREN")
+            target = table["FIN"][category].append(concept, formula=None)
         else:
             if account in ("Hucha", "Reserva"):
                 category = "Ahorro"
@@ -336,8 +350,8 @@ if __name__ == "__main__":
             else:
                 category = "Caja"
                 order = 1
-            table["COR"].append(category, values="SUM_CHILDREN", order_key=order)
-            target = table["COR"][category].append(account, values="VALUE")
+            table["COR"].append(category, formula="@SUM_CHILDREN", order_key=order)
+            target = table["COR"][category].append(account, formula=None)
         for key in ("A", "B", "C"):
             if key == "A":
                 target.values[key] += amount

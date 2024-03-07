@@ -8,7 +8,7 @@ from typing import Iterable, Literal
 
 from marx.model import MarxDataSuite
 from marx.reporting import TableBuilder, TableRow
-from marx.reporting.excel import Excel, CellID
+from marx.reporting.excel import Excel, CellID, StylesCatalog
 
 
 AMOUNT_PADDING = 50
@@ -43,9 +43,9 @@ class Balance:
         """
         timetable = {f"{date:%Y-%m}": date for date in sorted(dates)}
         table = TableBuilder(headers=timetable.keys())
-        table.append("Activos", values="SUM_CHILDREN")
-        table["Activos"].append("COR", "Activos corrientes", values="SUM_CHILDREN")
-        table["Activos"].append("FIN", "Activos financieros", values="SUM_CHILDREN")
+        table.append("Activos", formula="@SUM_CHILDREN")
+        table["Activos"].append("COR", "Activos corrientes", formula="@SUM_CHILDREN")
+        table["Activos"].append("FIN", "Activos financieros", formula="@SUM_CHILDREN")
 
         for event in self.suite.events.search(status="closed"):
             for account, sign in zip((event.orig, event.dest), (-1, 1)):
@@ -66,22 +66,22 @@ class Balance:
                     t2 = "Caja"
                     t2_order = 1
                     t3 = account.name
-                table[t1].append(t2, values="SUM_CHILDREN", order_key=t2_order)
+                table[t1].append(t2, formula="@SUM_CHILDREN", order_key=t2_order)
                 target = table[t1][t2].append(t3)
                 for key, datelimit in timetable.items():
                     if event.date <= datelimit:
                         target.values[key] += sign * event.amount
 
-        table.append("Pasivos", values="SUM_CHILDREN")
+        table.append("Pasivos", formula="@SUM_CHILDREN")
         table["Pasivos"].append("Deudas")
 
-        table.append("PN", "Patrimonio neto", values="SUM_CHILDREN")
+        table.append("PN", "Patrimonio neto", formula="@SUM_CHILDREN")
         table["PN"].append("Capital")
+        # table["PN"].append("Capital", formula="{Activos} - {Pasivos}")
         for key, datelimit in timetable.items():
             table["PN"]["Capital"].values[key] = (
                 table["Activos"].values[key] - table["Pasivos"].values[key]
             )
-
         return table
 
     def report(
@@ -122,31 +122,42 @@ class Balance:
             else:
                 print(text)
                 return None
+
         elif format == "excel":
+            # Catálogo de estilos
+            path = Path(__file__).parents[2] / "config" / "styles.xlsx"
+            styles = StylesCatalog(path)
             # Primero, a cada nodo se le asigna una fila, que será aquélla en
             # la que le tocará escribir sus valores.
             for row, node in enumerate(table, start=2):
                 node.row = row
             excel = Excel(output)
             excel.sheets[sheet].select()
+            excel.current_sheet.set_column_width(1, 35)
             # Cabeceras
-            pointer = excel.pointer(at="B1")
+            pointer = excel.pointer(at="A1")
+            pointer.cell.value = table.title
+            pointer.right()
             for header in table.headers:
                 pointer.cell.value = header
+                excel.current_sheet.set_column_width(pointer.column, 15)
                 pointer.right()
             # Contenido
             pointer.goto("A2")
             for node in table:
                 pointer.cell.value = node.title
+                pointer.cell.style = styles.pastel.text[f"h{node.generation}"]
                 vp = pointer.copy()
                 for col, header in enumerate(table.headers, start=2):
                     vp.right()
-                    if node.formula == "VALUE":
+                    if node.formula is None:
                         vp.cell.value = node.values[header]
-                    elif node.formula == "SUM_CHILDREN":
+                    elif node.formula == "@SUM_CHILDREN":
                         sum_cells = [CellID((col, child.row)) for child in node]
                         vp.cell.value = excel.compose_formula("SUM", sum_cells)
+                    vp.cell.style = styles.pastel.values[f"h{node.generation}"]
                 pointer.down()
+            excel.stylize()
             excel.save()
             excel.close()
             return output

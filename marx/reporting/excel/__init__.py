@@ -2,4 +2,5 @@
 # Creado: 05/03/2024
 """Herramientas y utilidades para manejar hojas de cálculo de Excel."""
 
-from .excel import Excel, CellID
+from .excel import *
+from .styles import StylesCatalog

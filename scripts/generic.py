@@ -18,8 +18,8 @@ from marx.reporting import Balance
 
 
 if __name__ == "__main__":
-    # path = get_most_recent_db("G:/Mi unidad/MiBilletera Backups")
-    path = Path(__file__).parent.parent / "local" / "Mar_06_2024_ExpensoDB"
+    path = get_most_recent_db("G:/Mi unidad/MiBilletera Backups")
+    # path = Path(__file__).parent.parent / "local" / "Mar_06_2024_ExpensoDB"
     print(">>> Usando: ", path)
     time.sleep(1)
     adapter = MarxAdapter(path)
@@ -33,7 +33,7 @@ if __name__ == "__main__":
         datetime(2023, 7, 1),
         datetime(2024, 1, 1),
     )
-    output = Path(__file__).parent.parent / "local" / "balance-2020-2024.xlsx"
+    output = Path(__file__).parent.parent / "out" / "balance-2020-2024.xlsx"
     if output.exists():
         output.unlink()
     out = balance.report(table, format="excel", output=output)
