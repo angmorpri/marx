@@ -34,6 +34,9 @@ class Sheet:
         self._sheet = sheet
         self.cells = {}
 
+        # Configuración general
+        self._sheet.sheet_properties.outlinePr.summaryBelow = False
+
     @property
     def raw(self) -> OpenpyxlSheet:
         """Devuelve la página de la hoja de cálculo como un objeto openpyxl."""
@@ -76,6 +79,11 @@ class Sheet:
             column = chr(column + 64)
         self._sheet.column_dimensions[column.upper()].width = width
 
+    def group_rows(self, start: int, end: int, outline_level: int = 0) -> None:
+        """Agrupa un rango de filas."""
+        print(f">>> [{outline_level}] {start} - {end}")
+        self._sheet.row_dimensions.group(start + 1, end, outline_level=outline_level)
+
     def __getitem__(self, key: CellIDLike | CellID) -> Cell:
         id = CellID(key)
         if id not in self.cells:
@@ -91,6 +99,9 @@ class Sheets:
 
     def __init__(self, base: Excel) -> None:
         self._base = base
+        self._sheets = []
+        for sheet in self._base._wb.sheetnames:
+            self._sheets.append(Sheet(self._base, self._base._wb[sheet]))
 
     def new(self, title: str, position: int | None = None, *, select: bool = False) -> Sheet:
         """Crea una nueva página en la hoja de cálculo.
@@ -105,24 +116,22 @@ class Sheets:
 
         """
         self._base._wb.create_sheet(title=title, index=position)
-        sheet = Sheet(self._base, self._base._wb[title])
+        new = Sheet(self._base, self._base._wb[title])
+        self._sheets.insert(position or len(self), new)
         if select:
-            sheet.select()
-        return sheet
+            new.select()
+        return new
 
     def __getitem__(self, key: int | str) -> Sheet:
         if isinstance(key, str):
-            return Sheet(self._base, self._base._wb[key])
-        elif isinstance(key, int):
-            return Sheet(self._base, self._base._wb[self._base._wb.sheetnames[key]])
-        else:
-            raise ValueError("El identificador de la página debe ser un entero o una cadena.")
+            key = self._base._wb.sheetnames.index(key)
+        return self._sheets[key]
 
     def __len__(self) -> int:
         return len(self._base._wb.sheetnames)
 
     def __iter__(self):
-        return iter(Sheet(self._base, self._base._wb[sheet]) for sheet in self._base._wb.sheetnames)
+        return iter(self._sheets)
 
     def __str__(self):
         return f"Sheets({len(self)} páginas)"
@@ -182,6 +191,9 @@ class CellID:
 
     def __hash__(self) -> int:
         return hash(self._cell_id)
+
+    def __repr__(self) -> str:
+        return f"{self._cell_id}"
 
     def __str__(self):
         return self._cell_id
@@ -357,10 +369,8 @@ class Excel:
     def stylize(self) -> None:
         """Aplica los estilos asignados a cada una de las celdas creadas."""
         for sheet in self.sheets:
-            print(">>>", sheet.title, len(sheet.cells))
             for cell in sheet.cells.values():
-                print(">>>>>>", sheet.title, cell.id.as_str(), cell.style)
-                cell.style.apply(cell)
+                cell.style.apply(cell.raw)
 
     # Utilidades y herramientas
     def compose_formula(self, formula: str, cells: list[CellIDLike | CellID]) -> str:

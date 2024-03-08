@@ -137,16 +137,23 @@ class Balance:
             # Cabeceras
             pointer = excel.pointer(at="A1")
             pointer.cell.value = table.title
+            pointer.cell.style = styles.pastel.text.title
             pointer.right()
             for header in table.headers:
                 pointer.cell.value = header
+                pointer.cell.style = styles.pastel.text.date
                 excel.current_sheet.set_column_width(pointer.column, 15)
                 pointer.right()
             # Contenido
             pointer.goto("A2")
+            prev_node = None
             for node in table:
                 pointer.cell.value = node.title
                 pointer.cell.style = styles.pastel.text[f"h{node.generation}"]
+                if node.title == "Pasivos":
+                    pointer.cell.style.color.theme -= 2
+                elif node.title == "Patrimonio neto":
+                    pointer.cell.style.color.theme += 2
                 vp = pointer.copy()
                 for col, header in enumerate(table.headers, start=2):
                     vp.right()
@@ -156,7 +163,33 @@ class Balance:
                         sum_cells = [CellID((col, child.row)) for child in node]
                         vp.cell.value = excel.compose_formula("SUM", sum_cells)
                     vp.cell.style = styles.pastel.values[f"h{node.generation}"]
+                    if node.title == "Pasivos":
+                        vp.cell.style.color.theme -= 2
+                    elif node.title == "Patrimonio neto":
+                        vp.cell.style.color.theme += 2
+                # Agrupación
+                # if prev_node and prev_node.generation != 1:
+                #    gen_diff = prev_node.generation - node.generation
+                #    if gen_diff >= 3:
+                #        excel.current_sheet.group_rows(
+                #            prev_node.parent.parent.parent.row,
+                #            prev_node.row,
+                #            prev_node.generation - 3,
+                #        )
+                #    if gen_diff >= 2:
+                #        excel.current_sheet.group_rows(
+                #            prev_node.parent.parent.row, prev_node.row, prev_node.generation - 2
+                #        )
+                #    if gen_diff >= 1:
+                #        excel.current_sheet.group_rows(
+                #            prev_node.parent.row, prev_node.row, prev_node.generation - 1
+                #        )
+                # Continuación
                 pointer.down()
+                prev_node = node
+            # Agrupación
+
+            # Formato
             excel.stylize()
             excel.save()
             excel.close()

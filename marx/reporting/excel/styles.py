@@ -4,8 +4,8 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from pathlib import Path
-from re import A
 from typing import Any, Literal
 
 import openpyxl
@@ -20,6 +20,10 @@ from openpyxl.styles import Side as OpenpyxlSide
 
 RGB = str
 ExcelTheme = tuple[int, int]
+
+WHITE = "#FFFFFF"
+BLACK = "#000000"
+GRAY = (1, 0.85)
 
 
 class Color:
@@ -59,7 +63,7 @@ class Color:
         if color is None:
             return cls(default)
         elif rgb := color.__dict__.get("rgb", False):
-            return cls(rgb)
+            return cls(f"#{rgb[2:]}")
         elif theme := color.__dict__.get("theme", False):
             tint = color.__dict__.get("tint", 0.0)
             return cls((theme, tint))
@@ -72,10 +76,15 @@ class Color:
             return OpenpyxlColor(rgb=f"FF{self.rgb[1:]}")
         return OpenpyxlColor(theme=self.theme, tint=self.tint)
 
-    def __str__(self) -> str:
+    def __repr__(self) -> str:
         if self.rgb:
             return f"Color({self.rgb})"
         return f"Color({self.theme}, {self.tint:.2f})"
+
+    def __str__(self) -> str:
+        if self.rgb:
+            return self.rgb
+        return f"<{self.theme}, {self.tint:.2f}>"
 
 
 class HandlesColor:
@@ -116,16 +125,20 @@ class Border(HandlesColor):
 
     """
 
-    def __init__(self, color: Color | RGB | ExcelTheme = "#FFFFFF", hide: bool = False) -> None:
+    def __init__(self, color: Color | RGB | ExcelTheme = WHITE, hide: bool = False) -> None:
         super().__init__(color)
         self.hide = hide
 
     def get(self) -> OpenpyxlSide:
         """Devuelve un objeto 'openpyxl.styles.Side'."""
-        return OpenpyxlSide(color=self.color.get(), border_style="thin" if not self.hide else None)
+        if self.hide:
+            return OpenpyxlSide(color=None, border_style=None)
+        return OpenpyxlSide(color=self.color.get(), border_style="thin")
 
     def __str__(self) -> str:
-        return f"Border({self.color!s}, hide={self.hide})"
+        if self.hide:
+            return f"HiddenBorder()"
+        return f"Border({self.color!s})"
 
 
 class Borders:
@@ -153,10 +166,10 @@ class Borders:
 
     def __init__(
         self,
-        top: Border | Color | RGB | ExcelTheme = "#FFFFFF",
-        bottom: Border | Color | RGB | ExcelTheme = "#FFFFFF",
-        left: Border | Color | RGB | ExcelTheme = "#FFFFFF",
-        right: Border | Color | RGB | ExcelTheme = "#FFFFFF",
+        top: Border | Color | RGB | ExcelTheme = GRAY,
+        bottom: Border | Color | RGB | ExcelTheme = GRAY,
+        left: Border | Color | RGB | ExcelTheme = GRAY,
+        right: Border | Color | RGB | ExcelTheme = GRAY,
         *,
         hide: str = "",
     ) -> None:
@@ -164,30 +177,31 @@ class Borders:
         self.bottom = bottom if isinstance(bottom, Border) else Border(bottom)
         self.left = left if isinstance(left, Border) else Border(left)
         self.right = right if isinstance(right, Border) else Border(right)
-        self.top.hide = "t" in hide
-        self.bottom.hide = "b" in hide
-        self.left.hide = "l" in hide
-        self.right.hide = "r" in hide
+        if hide:
+            self.top.hide = "t" in hide
+            self.bottom.hide = "b" in hide
+            self.left.hide = "l" in hide
+            self.right.hide = "r" in hide
 
     @classmethod
     def from_cell(cls, cell: OpenpyxlCell) -> Borders:
         """Copia los bordes de una celda de Openpyxl."""
         return cls(
             top=Border(
-                Color.from_color(cell.border.top.color, "#FFFFFF"),
-                cell.border.top.border_style is None,
+                Color.from_color(cell.border.top.color, GRAY),
+                cell.border.top.style is None,
             ),
             bottom=Border(
-                Color.from_color(cell.border.bottom.color, "#FFFFFF"),
-                cell.border.bottom.border_style is None,
+                Color.from_color(cell.border.bottom.color, GRAY),
+                cell.border.bottom.style is None,
             ),
             left=Border(
-                Color.from_color(cell.border.left.color, "#FFFFFF"),
-                cell.border.left.border_style is None,
+                Color.from_color(cell.border.left.color, GRAY),
+                cell.border.left.style is None,
             ),
             right=Border(
-                Color.from_color(cell.border.right.color, "#FFFFFF"),
-                cell.border.right.border_style is None,
+                Color.from_color(cell.border.right.color, GRAY),
+                cell.border.right.style is None,
             ),
         )
 
@@ -201,7 +215,11 @@ class Borders:
         )
 
     def __str__(self) -> str:
-        return f"Borders(top={self.top!s}, bottom={self.bottom!s}, left={self.left!s}, right={self.right!s})"
+        code = []
+        for side in ("top", "bottom", "left", "right"):
+            if not getattr(self, side).hide:
+                code.append(f"{side[0]}={getattr(self, side).color!s}")
+        return f"Borders({', '.join(code)})"
 
 
 class TextStyle(HandlesColor):
@@ -228,7 +246,7 @@ class TextStyle(HandlesColor):
         self,
         bold: bool = False,
         italic: bool = False,
-        color: Color | RGB | ExcelTheme = "#000000",
+        color: Color | RGB | ExcelTheme = BLACK,
         align: Literal["left", "center", "right"] = "left",
         indent: int = 0,
         format: str = "",
@@ -246,14 +264,23 @@ class TextStyle(HandlesColor):
         return cls(
             bold=cell.font.bold or False,
             italic=cell.font.italic or False,
-            color=Color.from_color(cell.font.color, "#000000"),
+            color=Color.from_color(cell.font.color, BLACK),
             align=cell.alignment.horizontal or "left",
             indent=cell.alignment.indent or 0,
             format=cell.number_format or "",
         )
 
     def __str__(self) -> str:
-        return f"TextStyle(bold={self.bold}, italic={self.italic}, color={self.color!s}, align={self.align}, indent={self.indent}, format={self.format})"
+        code = []
+        if self.bold:
+            code.append("b")
+        if self.italic:
+            code.append("i")
+        code.append(self.align[0].lower())
+        code.append(str(self.indent))
+        if self.format:
+            code.append("#")
+        return f"TextStyle({self.color!s}, {''.join(code)})"
 
 
 class CellStyle(HandlesColor):
@@ -263,6 +290,8 @@ class CellStyle(HandlesColor):
         - un estilo de texto 'TextStyle', mediante el atributo 'text'.
         - un color de fondo, mediante el atributo 'color'.
         - un borde 'Borders', mediante el atributo 'borders'.
+
+    También, opcionalmente, pueden tener un nombre identificador 'name'.
 
     Se proporciona el método 'apply', que recibe un objeto 'openpyxl.cell.Cell'
     y aplica el estilo a la celda.
@@ -285,8 +314,10 @@ class CellStyle(HandlesColor):
     def __init__(
         self,
         text: TextStyle | dict[str, Any] = {},
-        color: Color | RGB | ExcelTheme = "#FFFFFF",
-        borders: Borders | tuple[Color | RGB | ExcelTheme, str] = ("#FFFFFF", ""),
+        color: Color | RGB | ExcelTheme = WHITE,
+        borders: Borders | tuple[Color | RGB | ExcelTheme, str] = (GRAY, ""),
+        *,
+        name: str | None = None,
     ) -> None:
         super().__init__(color)
         self.text = text if isinstance(text, TextStyle) else TextStyle(**text)
@@ -295,14 +326,17 @@ class CellStyle(HandlesColor):
         else:
             c, hide = borders
             self.borders = Borders(c, c, c, c, hide=hide)
+        self.name = name
 
     @classmethod
-    def from_cell(cls, cell: OpenpyxlCell) -> CellStyle:
+    def from_cell(cls, cell: OpenpyxlCell, *args, **kwargs) -> CellStyle:
         """Copia el estilo de celda a partir de una celda de Openpyxl."""
         return cls(
             text=TextStyle.from_cell(cell),
-            color=Color.from_color(cell.fill.fgColor, "#FFFFFF"),
+            color=Color.from_color(cell.fill.fgColor, WHITE),
             borders=Borders.from_cell(cell),
+            *args,
+            **kwargs,
         )
 
     def apply(self, cell: OpenpyxlCell) -> None:
@@ -326,7 +360,9 @@ class CellStyle(HandlesColor):
         cell.border = self.borders.get()
 
     def __str__(self) -> str:
-        return f"CellStyle(text={self.text!s}, color={self.color!s}, borders={self.borders!s})"
+        if self.name:
+            return f"CellStyle({self.name!r}, {self.color!s}, text={self.text!s}, borders={self.borders!s})"
+        return f"CellStyle({self.color!s}, text={self.text!s}, borders={self.borders!s})"
 
 
 class StylesCatalog:
@@ -369,9 +405,9 @@ class StylesCatalog:
         }
         for row in sheet.iter_rows(min_row=2, min_col=2):
             for cell in row:
-                style = CellStyle.from_cell(cell)
                 theme = themes_by_column[cell.column]
                 name = names_by_row[cell.row]
+                style = CellStyle.from_cell(cell, name=f"{theme}-{name}")
                 self.define(name, style, theme.split("-"))
 
     def define(self, name: str, style: CellStyle, themes: str | tuple[str] = "") -> None:
@@ -393,7 +429,9 @@ class StylesCatalog:
         """Devuelve el estilo de celda."""
         if name not in self._styles:
             raise KeyError(f"El estilo o tema '{name}' no está definido.")
-        return self._styles[name]
+        if isinstance(self._styles[name], StylesCatalog):
+            return self._styles[name]
+        return deepcopy(self._styles[name])
 
     def __getitem__(self, name: str) -> CellStyle | StylesCatalog:
         """Devuelve el estilo de celda."""
