@@ -27,13 +27,11 @@ if __name__ == "__main__":
 
     balance = Balance(adapter.suite)
     table = balance.build(
-        datetime(2022, 1, 1),
-        datetime(2022, 7, 1),
-        datetime(2023, 1, 1),
-        datetime(2023, 7, 1),
-        datetime(2024, 1, 1),
+        datetime(2022, 1, 8),
+        datetime(2023, 1, 8),
+        datetime(2024, 1, 8),
     )
-    output = Path(__file__).parent.parent / "out" / "balance-2020-2024.xlsx"
+    output = Path(__file__).parent.parent / "out" / "balance-2020-2024-fix.xlsx"
     if output.exists():
         output.unlink()
     out = balance.report(table, format="excel", output=output)

@@ -65,7 +65,7 @@ class Sheet:
         """Cambia el nombre de la página actual."""
         self._sheet.title = new_title
 
-    def clean(self) -> None:
+    def clear(self) -> None:
         """Elimina todas las celdas de la página actual."""
         self._sheet.delete_rows(1, self.raw.max_row)
 

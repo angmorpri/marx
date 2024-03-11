@@ -41,7 +41,7 @@ class Balance:
         Devuelve la tabla creada como un objeto TableBuilder.
 
         """
-        timetable = {f"{date:%Y-%m}": date for date in sorted(dates)}
+        timetable = {f"{date:%Y-%m-%d}": date for date in sorted(dates)}
         table = TableBuilder(headers=timetable.keys())
         table.append("Activos", formula="@SUM_CHILDREN")
         table["Activos"].append("COR", "Activos corrientes", formula="@SUM_CHILDREN")
@@ -133,6 +133,7 @@ class Balance:
                 node.row = row
             excel = Excel(output)
             excel.sheets[sheet].select()
+            excel.current_sheet.clear()
             excel.current_sheet.set_column_width(1, 35)
             # Cabeceras
             pointer = excel.pointer(at="A1")
