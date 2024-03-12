@@ -6,8 +6,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterable, Literal
 
-from matplotlib.pylab import f
-
 from marx.model import MarxDataSuite
 from marx.reporting import TableBuilder
 from marx.util.excel import ExcelManager, CellID, StylesCatalog, Formula
