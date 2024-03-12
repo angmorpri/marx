@@ -6,12 +6,16 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterable, Literal
 
+from matplotlib.pylab import f
+
 from marx.model import MarxDataSuite
-from marx.reporting import TableBuilder, TableRow
-from marx.reporting.excel import Excel, CellID, StylesCatalog
+from marx.reporting import TableBuilder
+from marx.util.excel import ExcelManager, CellID, StylesCatalog, Formula
 
 
-AMOUNT_PADDING = 50
+STYLES_PATH = Path(__file__).parents[2] / "config" / "styles.xlsx"
+
+PADDING = 50
 INDENT_SIZE = 4
 
 
@@ -110,126 +114,133 @@ class Balance:
             raise ValueError(f"El formato '{format}' requiere un valor para 'output'.")
 
         if format == "text":
-            headers = "  |".join(f"{header:>12}" for header in table.headers)
-            text = [" " * AMOUNT_PADDING + headers]
-            for node in table:
-                text = self._text_report_line(node, text, 0)
-            text = "\n".join(text)
-            if output:
-                with open(output, "w", encoding="utf-8") as file:
-                    file.write(text)
-                return Path(output)
-            else:
-                print(text)
-                return None
+            return self._report_text(table, output)
 
         elif format == "excel":
-            # Catálogo de estilos
-            path = Path(__file__).parents[2] / "config" / "styles.xlsx"
-            styles = StylesCatalog(path)
-            # Primero, a cada nodo se le asigna una fila, que será aquélla en
-            # la que le tocará escribir sus valores.
-            for row, node in enumerate(table, start=2):
-                node.row = row
-            excel = Excel(output)
-            excel.sheets[sheet].select()
-            excel.current_sheet.clear()
-            excel.current_sheet.set_column_width(1, 35)
-            # Cabeceras
-            pointer = excel.pointer(at="A1")
-            pointer.cell.value = table.title
-            pointer.cell.style = styles.pastel.text.title
+            return self._report_excel(table, Path(output), sheet)
+            # Agrupación
+            # if prev_node and prev_node.generation != 1:
+            #    gen_diff = prev_node.generation - node.generation
+            #    if gen_diff >= 3:
+            #        excel.current_sheet.group_rows(
+            #            prev_node.parent.parent.parent.row,
+            #            prev_node.row,
+            #            prev_node.generation - 3,
+            #        )
+            #    if gen_diff >= 2:
+            #        excel.current_sheet.group_rows(
+            #            prev_node.parent.parent.row, prev_node.row, prev_node.generation - 2
+            #        )
+            #    if gen_diff >= 1:
+            #        excel.current_sheet.group_rows(
+            #            prev_node.parent.row, prev_node.row, prev_node.generation - 1
+            #        )
+            # Continuación
+
+    # Métodos para reporte específicos
+    def _report_text(self, table: TableBuilder, output: Path | None) -> Path | None:
+        """Reporte en formato texto."""
+        # Cabecera
+        headers = "  |".join(f"{header:>12}" for header in table.headers)
+        text = [" " * PADDING + headers]
+
+        # Cuerpo
+        prev = None
+        for node in table:
+            # Totales al finalizar un nivel
+            if prev and prev.gen > node.gen:
+                summarizing_node = prev.parent
+                for _ in range(prev.gen - node.gen):
+                    indent = INDENT_SIZE * (summarizing_node.gen - 1)
+                    if not summarizing_node.has_grandchildren():
+                        line = self._values_line(
+                            "", summarizing_node.values.values(), PADDING - indent
+                        )
+                        jump = ""
+                    else:
+                        line = self._values_line(
+                            f"Total de {summarizing_node.title.lower()}",
+                            summarizing_node.values.values(),
+                            PADDING - indent,
+                        )
+                        jump = "\n"
+                    text.append(jump + " " * indent + line)
+                    summarizing_node = summarizing_node.parent
+            # Títulos y valores principales
+            indent = INDENT_SIZE * (node.gen - 1)
+            if node.has_children():
+                text.append(f"\n{' ' * indent}[{node.title}]")
+            else:
+                padding = PADDING - indent
+                line = self._values_line(node.title, node.values.values(), padding)
+                text.append(f"{' ' * indent}{line}")
+            prev = node
+
+        # Salida
+        text = "\n".join(text)
+        if output:
+            with open(output, "w", encoding="utf-8") as file:
+                file.write(text)
+            return output
+        print(text)
+
+    def _values_line(self, title: str, values: Iterable[float], padding: int) -> str:
+        sep = "." if title else " "
+        str_values = []
+        for value in values:
+            value = f"{value:>,.2f}".replace(",", " ").replace(".", ",")
+            str_values.append(f"{value:{sep}>10} €")
+        str_values = (sep * 3).join(str_values)
+        return f"{title:{sep}<{padding}}{str_values}"
+
+    def _report_excel(self, table: TableBuilder, output: Path, sheet: int | str) -> Path:
+        """Reporte en format Excel."""
+        # Creación / Apertura de archivo
+        manager = ExcelManager(output)
+        styles = StylesCatalog(STYLES_PATH)
+        STYLE = styles.pastel
+        manager.sheets[sheet].select().clear()
+        manager.current_sheet.set_column_width(1, 35)
+
+        # Cabecera
+        pointer = manager.pointer(at="A1")
+        pointer.cell.value = table.title
+        pointer.cell.style = STYLE.text.title
+        pointer.right()
+        for header in table.headers:
+            pointer.cell.value = header
+            pointer.cell.style = STYLE.text.date
+            manager.current_sheet.set_column_width(pointer.column, 15)
             pointer.right()
-            for header in table.headers:
-                pointer.cell.value = header
-                pointer.cell.style = styles.pastel.text.date
-                excel.current_sheet.set_column_width(pointer.column, 15)
-                pointer.right()
-            # Contenido
-            pointer.goto("A2")
-            prev_node = None
-            for node in table:
-                pointer.cell.value = node.title
-                pointer.cell.style = styles.pastel.text[f"h{node.generation}"]
+
+        # Asignación de filas a nodos
+        for row, node in enumerate(table, start=2):
+            node.row = row
+
+        # Cuerpo
+        keys = [None] + list(table.headers)
+        for node in table:
+            pointer.goto((1, node.row))
+            for col, key in enumerate(keys, start=1):
+                # Valores
+                if col == 1:
+                    pointer.cell.value = node.title
+                elif node.formula is None:
+                    pointer.cell.value = node.values[key]
+                elif node.formula == "@SUM_CHILDREN":
+                    cells = [CellID((col, child.row)) for child in node]
+                    pointer.cell.value = Formula("SUM", cells).build()
+                # Estilos
+                pointer.cell.style = STYLE["text" if col == 1 else "values"][f"h{node.gen}"]
                 if node.title == "Pasivos":
                     pointer.cell.style.color.theme -= 2
                 elif node.title == "Patrimonio neto":
                     pointer.cell.style.color.theme += 2
-                vp = pointer.copy()
-                for col, header in enumerate(table.headers, start=2):
-                    vp.right()
-                    if node.formula is None:
-                        vp.cell.value = node.values[header]
-                    elif node.formula == "@SUM_CHILDREN":
-                        sum_cells = [CellID((col, child.row)) for child in node]
-                        vp.cell.value = excel.compose_formula("SUM", sum_cells)
-                    vp.cell.style = styles.pastel.values[f"h{node.generation}"]
-                    if node.title == "Pasivos":
-                        vp.cell.style.color.theme -= 2
-                    elif node.title == "Patrimonio neto":
-                        vp.cell.style.color.theme += 2
-                # Agrupación
-                # if prev_node and prev_node.generation != 1:
-                #    gen_diff = prev_node.generation - node.generation
-                #    if gen_diff >= 3:
-                #        excel.current_sheet.group_rows(
-                #            prev_node.parent.parent.parent.row,
-                #            prev_node.row,
-                #            prev_node.generation - 3,
-                #        )
-                #    if gen_diff >= 2:
-                #        excel.current_sheet.group_rows(
-                #            prev_node.parent.parent.row, prev_node.row, prev_node.generation - 2
-                #        )
-                #    if gen_diff >= 1:
-                #        excel.current_sheet.group_rows(
-                #            prev_node.parent.row, prev_node.row, prev_node.generation - 1
-                #        )
-                # Continuación
-                pointer.down()
-                prev_node = node
-            # Agrupación
+                # Movimiento
+                pointer.right()
 
-            # Formato
-            excel.stylize()
-            excel.save()
-            excel.close()
-            return output
-
-    # Métodos para reporte en formato texto
-    def _text_report_line(self, node: TableRow, text: list[str], indent_level: int) -> list[str]:
-        """Genera una línea de texto para un informe en formato texto."""
-        indent = indent_level * INDENT_SIZE
-        if node.has_children():
-            text.append(f"\n{indent * ' '}[{node.title}]")
-            for child in node:
-                text = self._text_report_line(child, text, indent_level + 1)
-            if node.has_grandchildren() or indent_level == 0:
-                title = f"Total {node.title.lower()}"
-                jumps = 1
-            else:
-                title = ""
-                jumps = 0
-            text.append(self._balance_line(title, node.values.values(), indent_level, jumps))
-            if indent_level == 0:
-                text.append("\n-")
-        else:
-            text.append(self._balance_line(node.title, node.values.values(), indent_level))
-        return text
-
-    def _balance_line(
-        self, title: str, values: Iterable[float], indent_level: int, jumps: int = 0
-    ) -> str:
-        """Genera una línea de balance para un informe en formato texto."""
-        sep = "." if title else " "
-        indent = indent_level * INDENT_SIZE
-        padding = AMOUNT_PADDING - indent
-        amounts = []
-        for value in values:
-            amounts.append(f"{self._amount_line(value):{sep}>10} €")
-        amounts = (sep * 3).join(amounts)
-        return ("\n" * jumps) + f"{indent * ' '}{title:{sep}<{padding}}{amounts}"
-
-    def _amount_line(self, value: float) -> str:
-        """Genera una línea de cantidad para un informe en formato texto."""
-        return f"{value:>,.2f}".replace(",", " ").replace(".", ",")
+        # Formato y guardado
+        manager.stylize()
+        manager.save()
+        manager.close()
+        return output

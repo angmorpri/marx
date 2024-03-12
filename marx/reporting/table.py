@@ -97,6 +97,11 @@ class Node:
             parent = parent.parent
         return generation
 
+    @property
+    def gen(self) -> int:
+        """Seudónimo para 'generation'"""
+        return self.generation
+
     def has_children(self) -> bool:
         """Indica si el nodo tiene hijos o no."""
         return bool(self.children)
