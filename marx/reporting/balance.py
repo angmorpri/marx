@@ -219,7 +219,17 @@ class Balance:
 
         # Cuerpo
         keys = [None] + list(table.headers)
+        prev = None
+        groups = []
         for node in table:
+            # Agrupación
+            if prev and prev.gen > node.gen:
+                stop_row = prev.row
+                start_node = prev.parent
+                for _ in range(prev.gen - node.gen):
+                    groups.append((start_node.row, stop_row, start_node.gen))
+                    start_node = start_node.parent
+            # Contenido
             pointer.goto((1, node.row))
             for col, key in enumerate(keys, start=1):
                 # Valores
@@ -238,6 +248,14 @@ class Balance:
                     pointer.cell.style.color.theme += 2
                 # Movimiento
                 pointer.right()
+            prev = node
+
+        # Agrupación
+        for g in (1, 3):
+            for group in sorted(groups, key=lambda x: x[2]):
+                if group[2] == g:
+                    group = (group[0], group[1], group[2] if g == 1 else 2)
+                    manager.current_sheet.group_rows(*group)
 
         # Formato y guardado
         manager.stylize()

@@ -79,10 +79,12 @@ class Sheet:
             column = chr(column + 64)
         self.raw.column_dimensions[column.upper()].width = width
 
-    def group_rows(self, start: int, end: int, outline_level: int = 0) -> None:
+    def group_rows(self, start: int, end: int, outline_level: int = 1) -> None:
         # TODO: Implementar
         """Agrupa un rango de filas."""
         print(f">>> [{outline_level}] {start} - {end}")
+        if outline_level not in (1, 2):
+            return
         self.raw.row_dimensions.group(start + 1, end, outline_level=outline_level)
 
     # Selección de celdas
