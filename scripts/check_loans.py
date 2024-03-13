@@ -9,12 +9,57 @@ sys.path.append(os.path.dirname(MARX_DIR))
 
 
 import time
+import re
 from datetime import datetime
 from pathlib import Path
 
 from marx.model import MarxAdapter
 from marx.util import get_most_recent_db
 from marx.util.excel import ExcelManager
+
+
+def find_tags(text: str) -> list[str]:
+    """Encuentra todas las etiquetas en un texto."""
+    pattern = r"\[([^\[\]]+)\]"
+    return re.findall(pattern, text)
+
+
+def find_loans(adapter: MarxAdapter) -> None:
+    loans = {}
+    for event in adapter.suite.events.search(
+        lambda ev: ev.category.code in ("B14", "A23"),
+        status="closed",
+    ):
+        if tags := find_tags(event.details):
+            tag = tags[0]
+            if tag not in loans:
+                loans[tag] = {
+                    "loans": [],
+                    "payments": [],
+                    "base_total": 0,
+                    "left_total": 0,
+                }
+            if event.category.code == "B14":
+                loans[tag]["loans"].append(event)
+                loans[tag]["base_total"] += event.amount
+                loans[tag]["left_total"] += event.amount
+            elif event.category.code == "A23":
+                loans[tag]["payments"].append(event)
+                loans[tag]["left_total"] -= event.amount
+
+    print(">>> Préstamos:")
+    for tag, loan in loans.items():
+        print(f"  - {tag}:")
+        print(f"    - Base: {loan['base_total']}")
+        print(f"    - Restante: {loan['left_total']}")
+        print(f"    - Préstamos:")
+        for event in loan["loans"]:
+            print(f"      - {event}")
+        print(f"    - Pagos:")
+        for event in loan["payments"]:
+            print(f"      - {event}")
+        print()
+        input()
 
 
 if __name__ == "__main__":
@@ -24,36 +69,4 @@ if __name__ == "__main__":
     adapter = MarxAdapter(path)
     adapter.load()
 
-    loans = {}
-    for event in adapter.suite.events.search(
-        lambda ev: ev.category.code in ("B14", "A23"),
-        lambda ev: ev.date.year > 2021,
-        status="closed",
-    ):
-        if event.category.code == "B14":
-            if event.dest not in loans:
-                loans[event.dest] = {
-                    "payee_events": [],
-                    "payer_events": [],
-                    "base_total": 0,
-                    "left_total": 0,
-                }
-            loans[event.dest]["payee_events"].append(event)
-            loans[event.dest]["base_total"] += event.amount
-            loans[event.dest]["left_total"] += event.amount
-        elif event.category.code == "A23":
-            for payee in loans:
-                if event.orig in payee and loans[payee]["left_total"] > 0:
-                    loans[payee]["payer_events"].append(event)
-                    loans[payee]["left_total"] -= event.amount
-                    break
-
-    print(">>> Préstamos:")
-    for payee, data in loans.items():
-        print(f"{payee}: {data['base_total']:.2f} - {data['left_total']:.2f}")
-        for event in data["payee_events"]:
-            print(f"  - {event}")
-        for event in data["payer_events"]:
-            print(f"  + {event}")
-        print()
-        input()
+    find_loans(adapter)

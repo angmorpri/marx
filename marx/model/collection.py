@@ -225,12 +225,17 @@ class Collection(Generic[CollectionEntity]):
         'entity' debe ser una instancia de la clase base de la colección. No
         se comprueba si la entidad ya existe en la colección.
 
+        Si se añade una entidad con ID = -1, se considera una entidad nueva.
+
         Devuelve una colección de un solo elemento con la nueva entidad.
 
         """
         if not isinstance(entity, self._base):
             raise TypeError(f"La entidad debe ser de tipo {self._base!r}")
-        iid = self._append(entity, source="add")
+        if entity.id == -1:
+            iid = self._append(entity, source="new")
+        else:
+            iid = self._append(entity, source="add")
         return self._subset([iid], self._iid)
 
     def update(

@@ -3,10 +3,12 @@
 """Módulo para generar informes de balance general de cuentas."""
 
 from datetime import datetime
+from itertools import chain
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Iterable, Literal
 
-from marx.model import MarxDataSuite
+from marx.model import MarxDataSuite, find_loans
 from marx.reporting import TableBuilder
 from marx.util.excel import ExcelManager, CellID, StylesCatalog, Formula
 
@@ -40,15 +42,22 @@ class Balance:
     def build(self, *dates: datetime) -> TableBuilder:
         """Genera una tabla de balance general para cada fecha dada.
 
+        Utiliza tanto las cuentas como las características específicas de los
+        eventos para ubicar cada movimiento en su correspondiente categoría
+        contable. También analiza los préstamos y deudas pendientes para
+        incluirlos en el balance, ya sea como cuentas a cobrar o como pasivos.
+
         Devuelve la tabla creada como un objeto TableBuilder.
 
         """
         timetable = {f"{date:%Y-%m-%d}": date for date in sorted(dates)}
         table = TableBuilder(headers=timetable.keys())
+
+        # Activos
         table.append("Activos", formula="@SUM_CHILDREN")
         table["Activos"].append("COR", "Activos corrientes", formula="@SUM_CHILDREN")
         table["Activos"].append("FIN", "Activos financieros", formula="@SUM_CHILDREN")
-
+        # > Eventos
         for event in self.suite.events.search(status="closed"):
             for account, sign in zip((event.orig, event.dest), (-1, 1)):
                 if isinstance(account, str) or account.unknown:
@@ -73,10 +82,20 @@ class Balance:
                 for key, datelimit in timetable.items():
                     if event.date <= datelimit:
                         target.values[key] += sign * event.amount
+        # > Préstamos (cuentas a cobrar)
+        for key, datelimit in timetable.items():
+            for loan in find_loans(self.suite, to_date=datelimit).values():
+                if loan.status != "open":
+                    continue
+                cxc = table["COR"].append("Cuentas a cobrar", formula="@SUM_CHILDREN")
+                title = f"{loan.loans[-1].dest} ({loan.loans[-1].concept})"
+                cxc.append(title).values[key] += loan.left
 
+        # Pasivos
         table.append("Pasivos", formula="@SUM_CHILDREN")
         table["Pasivos"].append("Deudas")
 
+        # Patrimonio neto
         table.append("PN", "Patrimonio neto", formula="@SUM_CHILDREN")
         table["PN"].append("Capital")
         # table["PN"].append("Capital", formula="{Activos} - {Pasivos}")
@@ -116,24 +135,6 @@ class Balance:
 
         elif format == "excel":
             return self._report_excel(table, Path(output), sheet)
-            # Agrupación
-            # if prev_node and prev_node.generation != 1:
-            #    gen_diff = prev_node.generation - node.generation
-            #    if gen_diff >= 3:
-            #        excel.current_sheet.group_rows(
-            #            prev_node.parent.parent.parent.row,
-            #            prev_node.row,
-            #            prev_node.generation - 3,
-            #        )
-            #    if gen_diff >= 2:
-            #        excel.current_sheet.group_rows(
-            #            prev_node.parent.parent.row, prev_node.row, prev_node.generation - 2
-            #        )
-            #    if gen_diff >= 1:
-            #        excel.current_sheet.group_rows(
-            #            prev_node.parent.row, prev_node.row, prev_node.generation - 1
-            #        )
-            # Continuación
 
     # Métodos para reporte específicos
     def _report_text(self, table: TableBuilder, output: Path | None) -> Path | None:
@@ -219,7 +220,10 @@ class Balance:
         keys = [None] + list(table.headers)
         prev = None
         groups = []
-        for node in table:
+        for node in chain(table, [None]):
+            # Nodo de control
+            if node is None:
+                node = SimpleNamespace(gen=1, row=-1)
             # Agrupación
             if prev and prev.gen > node.gen:
                 stop_row = prev.row
@@ -228,6 +232,8 @@ class Balance:
                     groups.append((start_node.row, stop_row, start_node.gen))
                     start_node = start_node.parent
             # Contenido
+            if node.row == -1:  # Nodo de control
+                break
             pointer.goto((1, node.row))
             for col, key in enumerate(keys, start=1):
                 # Valores
@@ -249,11 +255,8 @@ class Balance:
             prev = node
 
         # Agrupación
-        for g in (1, 3):
-            for group in sorted(groups, key=lambda x: x[2]):
-                if group[2] == g:
-                    group = (group[0], group[1], group[2] if g == 1 else 2)
-                    manager.current_sheet.group_rows(*group)
+        for from_, to, level in sorted(groups, key=lambda x: x[2], reverse=False):
+            manager.current_sheet.group_rows(from_, to, level)
 
         # Formato y guardado
         manager.stylize()
