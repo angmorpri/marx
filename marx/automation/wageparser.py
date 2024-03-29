@@ -19,7 +19,7 @@ from PyPDF2 import PdfReader, PageObject
 from marx.model import MarxDataSuite
 
 
-DEFAULT_CFG = Path(__file__).parent.parent.parent / "config" / "wage.cfg"
+DEFAULT_CFG = Path(__file__).parent.parent.parent / "config" / "wageparser.cfg"
 
 CONCEPT_LN_PATTERN = r"^(?:\d\d-\d\d|BENEF ).*"
 FILENAME_PATTERN = r"\d{2}-\d{4}(-[A-Za-z])?\.pdf"

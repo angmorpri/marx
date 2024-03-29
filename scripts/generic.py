@@ -12,29 +12,11 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from marx.model import MarxAdapter
-from marx.util import get_most_recent_db
-from marx.reporting import Balance
+from marx.api import MarxAPI
 
 
 if __name__ == "__main__":
-    path = get_most_recent_db("G:/Mi unidad/MiBilletera Backups")
-    # path = Path(__file__).parent.parent / "local" / "Mar_06_2024_ExpensoDB"
-    print(">>> Usando: ", path)
-    time.sleep(0.25)
-    adapter = MarxAdapter(path)
-    adapter.load()
-
-    balance = Balance(adapter.suite)
-    table = balance.build(
-        datetime(2022, 1, 1),
-        datetime(2022, 7, 1),
-        datetime(2023, 1, 1),
-        datetime(2023, 7, 1),
-        datetime(2024, 1, 1),
-    )
-    output = Path(__file__).parent.parent / "out" / "balance-loans.xlsx"
-    if output.exists():
-        output.unlink()
-    out = balance.report(table, format="excel", output=output)
-    print(">>>", out)
+    api = MarxAPI()
+    print("Usando: ", api.current_source)
+    print()
+    api.autoquotas()

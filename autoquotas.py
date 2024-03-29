@@ -7,7 +7,7 @@ from pathlib import Path
 
 from marx.automation import Distribution
 from marx.model import MarxAdapter
-from marx.util import get_most_recent_db, parse_auto_cfg
+from marx.util import get_most_recent_db, parse_nested_cfg
 
 
 CFG_PATH = Path(__file__).parent / "config" / "autoq.cfg"
@@ -34,7 +34,7 @@ if __name__ == "__main__":
                 print("Fecha inválida")
 
     # Configuración
-    source, amount, ratio, sinks = parse_auto_cfg(CFG_PATH)
+    source, amount, ratio, sinks = parse_nested_cfg(CFG_PATH)
 
     # Distribución
     d = Distribution(adapter.suite)
@@ -45,7 +45,7 @@ if __name__ == "__main__":
         d.source.ratio = ratio
     for sink in sinks:
         d.sinks.new(**sink)
-    d.check(show=True)
+    d.prepare(show=True)
     d.run(date=date)
 
     # Guardar

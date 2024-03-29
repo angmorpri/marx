@@ -16,6 +16,9 @@ from datetime import datetime
 from marx.model import Account, Category, Collection, MarxDataSuite
 
 
+Counterpart = str
+
+
 class DistrSource:
     """Fuente de capital a distribuir.
 
@@ -237,19 +240,27 @@ class Distribution:
     def sinks(self) -> Collection[DistrSink]:
         return self._sinks
 
-    def check(self, *, show: bool = False) -> bool:
-        """Comprueba si la distribución es posible.
+    def prepare(self, *, show: bool = False) -> bool:
+        """Prepara la distribución.
+
+        Comprueba si es posible ejecutarla según los siguientes aspectos:
+        - Orígenes y destinos no son todos nulos o contrapartes.
+        - La cantidad a distribuir es suficiente según lo configurado en los
+            sumideros.
+        - Los porcentajes de distribución en los sumideros suman 100%.
 
         Si 'show' es True, se mostrará el resultado por pantalla.
 
         """
-        # Orígenes y destinos
+        # Orígenes y destinos no nulos ni contrapartes
         if self._source.target is None:
             raise ValueError("No se ha definido la fuente de capital.")
-        if isinstance(self._source.target, str) and any(
-            isinstance(sink.target, str) for sink in self._sinks
+        if isinstance(self._source.target, Counterpart) and any(
+            isinstance(sink.target, Counterpart) for sink in self._sinks
         ):
-            raise ValueError("No se pueden usar contrapartes como fuente y destino a la vez.")
+            raise ValueError(
+                "Si el origen es una contraparte, ningún sumidero puede ser contraparte."
+            )
 
         # Cantidad a distribuir
         base_total = None
@@ -301,7 +312,7 @@ class Distribution:
         Si no lo es, se lanzará un ValueError.
 
         """
-        if not self.check():
+        if not self.prepare():
             raise ValueError("La distribución no es posible.")
 
         date = date or datetime.now()
