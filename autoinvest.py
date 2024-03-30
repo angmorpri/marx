@@ -35,17 +35,7 @@ if __name__ == "__main__":
     print(f"Fecha seleccionada: {date:%d/%m/%Y}")
 
     # Configuración
-    source, amount, ratio, sinks = parse_nested_cfg(CFG_PATH)
-
-    # Distribución
-    d = Distribution(adapter.suite)
-    d.source = source
-    if amount:
-        d.source.amount = amount
-    if ratio:
-        d.source.ratio = ratio
-    for sink in sinks:
-        d.sinks.new(**sink)
+    d = Distribution.from_cfg(adapter.suite, CFG_PATH)
     d.prepare(show=True)
     d.run(date=date)
 

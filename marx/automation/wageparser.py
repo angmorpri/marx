@@ -47,7 +47,6 @@ class WageParser:
         self.cfg_path = cfg_path
 
     # Búsqueda e iteración de archivos
-
     def iter_all(self, dir: str | Path) -> Iterator[Path]:
         """Itera sobre todos los archivos en el directorio 'dir' que tengan
         formato válido para ser nóminas.
@@ -81,6 +80,7 @@ class WageParser:
             raise FileNotFoundError(f"{ERROR} No se encontró ningún archivo válido.")
         return choice
 
+    # Parseo de archivos
     def parse_filename(self, filename: str) -> tuple[int, int, int]:
         """Comprueba que el nombre de archivo es válido, y extrae de éste un
         valor de comparación con otros archivos para determinar el más

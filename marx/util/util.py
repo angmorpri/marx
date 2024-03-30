@@ -118,53 +118,6 @@ def parse_nested_cfg(path: str | Path) -> dict[str, Any]:
     return res
 
 
-def _parse_nested_cfg(
-    path: str | Path,
-) -> tuple[str, float | None, float | None, list[dict[str, Any]]]:
-    """Lee el archivo de configuración automática y devuelve un diccionario."""
-    ERROR = "Error parseando el archivo de configuración:"
-    parser = configparser.RawConfigParser()
-    parser.read(path, encoding="utf-8")
-    base_sink = {}
-    for section in parser.sections():
-        if section == "source":
-            try:
-                source = parser.get(section, "target")
-            except configparser.NoOptionError:
-                raise ValueError(f"{ERROR} No se ha especificado la fuente de datos")
-            amount = parser.getfloat(section, "amount", fallback=None)
-            ratio = parser.getfloat(section, "ratio", fallback=None)
-        elif section == "sinks":
-            # Valor por defecto para todos los sinks
-            for option in parser.options(section):
-                if option in ("amount", "ratio"):
-                    base_sink[option] = parser.getfloat(section, option)
-                else:
-                    base_sink[option] = parser.get(section, option)
-    sinks = []
-    for section in parser.sections():
-        if section.startswith("sinks."):
-            sink = base_sink.copy()
-            sink["sid"] = sid = section.split(".")[1]
-            for key in ("amount", "ratio", "details", "target", "category", "concept"):
-                if key in sink:
-                    continue
-                try:
-                    if key in ("amount", "ratio"):
-                        sink[key] = parser.getfloat(section, key)
-                    else:
-                        sink[key] = parser.get(section, key).strip('"')
-                except configparser.NoOptionError:
-                    if key in ("target", "category", "concept"):
-                        raise ValueError(
-                            f"{ERROR} No se ha especificado {key} obligatoria en sumidero {sid}"
-                        )
-                    else:
-                        pass
-            sinks.append(sink)
-    return source, amount, ratio, sinks
-
-
 if __name__ == "__main__":
     cfgpath = Path(__file__).parent.parent.parent / "config" / "wageparser.cfg"
     res = parse_nested_cfg(cfgpath)

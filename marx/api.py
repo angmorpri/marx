@@ -12,9 +12,9 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 
-from marx.automation import Distribution
+from marx.automation import Distribution, WageParser
 from marx.model import MarxAdapter
-from marx.util import get_most_recent_db, parse_nested_cfg
+from marx.util import get_most_recent_db
 
 
 PATHS_CFG_FILE = Path(__file__).parent.parent / "config" / "paths.cfg"
@@ -98,23 +98,73 @@ class MarxAPI:
             raise FileNotFoundError(
                 f"El archivo de configuración de cuotas mensuales proporcionado no existe."
             )
-        source, amount, ratio, sinks = parse_nested_cfg(cfg_file)
 
-        distr = Distribution(self._adapter.suite)
-        distr.source = source
-        if amount:
-            distr.source.amount = amount
-        if ratio:
-            distr.source.ratio = ratio
-        for sink in sinks:
-            distr.sinks.new(**sink)
-        distr.prepare(show=True)
+        distr = Distribution.from_cfg(self._adapter.suite, cfg_file)
+        distr.prepare(show=False)
         distr.run(date=date)
 
-        print("******************************")
-        print(distr.source)
-        for sink in distr.sinks:
-            print(sink)
+        return None
+
+    def autoinvest(self, date: datetime | None = None, cfg_file: Path | None = None) -> None:
+        """Generador de inversiones mensuales.
+
+        De no especificarse un archivo de configuración alternativo, se usará
+        el cargado por defecto desde el archivo de configuración principal.
+
+        """
+        date = date or datetime.now()
+        if not isinstance(date, datetime):
+            raise ValueError(
+                f"La fecha proporcionada debe tener formato 'datetime.datetime', no {type(date)!s}"
+            )
+
+        cfg_file = cfg_file or self._paths["autoinvest-config"]
+        if not cfg_file.exists():
+            raise FileNotFoundError(
+                f"El archivo de configuración de inversiones mensuales proporcionado no existe."
+            )
+
+        distr = Distribution.from_cfg(self._adapter.suite, cfg_file)
+        distr.prepare(show=False)
+        distr.run(date=date)
+
+        return None
+
+    def wageparser(
+        self, target: str, date: datetime | None = None, cfg_file: Path | None = None
+    ) -> None:
+        """Generador de eventos derivados de la nómina.
+
+        'target' debe ser el nombre del archivo de nómina a procesar, que se
+        buscará en el directorio indicado en la clave 'wages-dir' del archivo
+        de configuración principal.
+
+        De no especificarse un archivo de configuración alternativo, se usará
+        el cargado por defecto desde el archivo de configuración principal.
+
+        """
+        wage_file = self._paths["wages-dir"] / (target + ".pdf")
+        if not wage_file.exists():
+            raise FileNotFoundError(
+                f"No se encuentra el archivo de nómina con nombre {target} en {self._paths['wages-dir']}"
+            )
+
+        date = date or datetime.now()
+        if not isinstance(date, datetime):
+            raise ValueError(
+                f"La fecha proporcionada debe tener formato 'datetime.datetime', no {type(date)!s}"
+            )
+
+        cfg_file = cfg_file or self._paths["wageparser-config"]
+        if not cfg_file.exists():
+            raise FileNotFoundError(
+                f"El archivo de configuración del parser de nóminas proporcionado no existe."
+            )
+
+        wp = WageParser(self._adapter.suite, cfg_file)
+        wp.parse(wage_file, date=date, verbose=False)
+
+        return None
 
     def set_path(self, key: str, new_path: str | Path) -> None:
         """Modifica el directorio o archivo usado por defecto para fuentes de
