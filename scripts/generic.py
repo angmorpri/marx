@@ -19,4 +19,5 @@ IPATH = Path("C:/Users/angel/Desktop/autoi.cfg")
 
 if __name__ == "__main__":
     api = Marx()
-    print("Usando: ", api.current_source)
+    output = api.balance(datetime(2023, 10, 1), datetime(2024, 4, 1), "2w")
+    print(">>>", output)

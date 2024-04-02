@@ -8,16 +8,21 @@ las herramientas del programa.
 """
 
 import configparser
+import os
 import shutil
 from datetime import datetime
 from pathlib import Path
 
+from dateutil.relativedelta import relativedelta
+
 from marx.automation import Distribution, WageParser
 from marx.model import MarxAdapter
+from marx.reporting import Balance
 from marx.util import get_most_recent_db
 
 
-PATHS_CFG_FILE = Path(__file__).parent.parent / "config" / "paths.cfg"
+CONFIG_PATH = Path(__file__).parent.parent / "config"
+PATHS_CFG_FILE = CONFIG_PATH / "paths.cfg"
 
 
 class Marx:
@@ -46,10 +51,17 @@ class Marx:
     def __init__(self) -> None:
         # Carga directorios y archivos de configuración.
         self._paths = {}
-        cfg = configparser.ConfigParser()
+        cfg = configparser.RawConfigParser()
         cfg.read(PATHS_CFG_FILE, encoding="utf-8")
         for key in cfg["paths"]:
             self._paths[key] = self._get_path(cfg["paths"][key].strip('"'))
+            if not self._paths[key].exists():
+                if key == "user-dir":
+                    self._paths[key].mkdir()
+                else:
+                    raise FileNotFoundError(
+                        f"El archivo de {key!r} ({self._paths[key]!s}) no existe."
+                    )
         # Carga la fuente de datos.
         self.update_source()
 
@@ -174,6 +186,75 @@ class Marx:
         res = wp.parse(wage_file, date=date, verbose=False)
         return res
 
+    def balance(
+        self,
+        start: datetime,
+        end: datetime,
+        step: str = "1m",
+        output: Path | None = None,
+        sheet_id: int | str = 0,
+    ) -> Path:
+        """Genera un balance para ciertas fechas.
+
+        'start' y 'end' deben ser fechas en formato 'datetime.datetime'.
+
+        'step' debe ser una cadena compuesta por un número y una de las
+        siguientes letras para indicar el paso de tiempo:
+            - 'd' para días
+            - 'w' para semanas
+            - 'm' para meses
+            - 'y' para años
+        Por ejemplo, "1d" generará un balance diario, "2w" uno cada dos
+        semanas, etc.
+
+        'end' sólo se incluirá en el balance si coincide exactamente con un
+        paso de tiempo.
+
+        Si se quiere especificar una ruta o un archivo donde volcar el
+        resultado, se debe usar el parámetro 'output'. Si no se especifica,
+        se almacenará en el directorio indicado por la clave 'user-dir' en la
+        configuración principal. Si se indica un directorio pero no un nombre,
+        el nombre por defecto será "balance.xlsx", sobrescribiendo si ya
+        existe.
+
+        Por otro lado, si se indica un archivo existente, se puede indicar un
+        índice de hoja donde volcar los datos, sobrescribiendo lo que hubiera
+        previamente. Este índice puede ser o bien un entero indicando la
+        posición de la hoja, o bien una cadena con el nombre de la hoja. Si no
+        se indica, se sobrescribirá el documento al completo. Si no se indicó
+        un archivo, se ignorará este parámetro.
+
+        Devuelve la ruta del archivo Excel generado.
+
+        """
+        # Tiempos
+        if not isinstance(start, datetime) or not isinstance(end, datetime):
+            raise ValueError("Las fechas de inicio y fin deben ser de tipo 'datetime.datetime'.")
+        if start > end:
+            raise ValueError("La fecha de inicio no puede ser posterior a la de fin.")
+        if not isinstance(step, str):
+            raise ValueError("El paso de tiempo debe ser una cadena.")
+        step, unit = int(step[:-1]), step[-1]
+        if unit not in ("d", "w", "m", "y"):
+            raise ValueError("El paso de tiempo debe indicarse mediante 'd', 'w', 'm' o 'y'.")
+        unit = {"d": "days", "w": "weeks", "m": "months", "y": "years"}[unit]
+        dates = [start]
+        while dates[-1] < end:
+            dates.append(dates[-1] + relativedelta(**{unit: +step}))
+
+        # Archivo de salida
+        output = output or self._paths["user-dir"]
+        if not output.exists():
+            raise FileNotFoundError(f"El archivo o directorio de salida no existe.")
+        if output.is_dir():
+            output /= "balance.xlsx"
+
+        # Resultado
+        balance = Balance(self._adapter.suite)
+        table = balance.build(*dates)
+        output = balance.report(table, format="excel", output=output, sheet=sheet_id)
+        return output
+
     def set_path(self, key: str, new_path: str | Path) -> None:
         """Modifica el directorio o archivo usado por defecto para fuentes de
         datos o configuraciones.
@@ -181,6 +262,7 @@ class Marx:
         'key' debe ser una de las claves del archivo de rutas, es decir:
             - 'sources-dir'
             - 'wages-dir'
+            - 'user-dir'
             - 'autoquotas-config'
             - 'autoinvest-config'
             - 'wageparser-config'
@@ -219,16 +301,13 @@ class Marx:
 
     # Interno
     def _get_path(self, path: str | Path) -> Path:
-        """Almacena una ruta a un archivo a partir de 'raw_path'.
-
-        Si la ruta es relativa, la vuelve absoluta dentro de "marx".
+        """Almacena una ruta a un archivo a partir de 'path'.
 
         Si la ruta no existe, lanza un error.
 
         """
-        path = Path(path)
+        path = Path(os.path.expandvars(path))
         if not path.is_absolute():
-            path = Path(str(Path(__file__).parent.parent) + "/config" + str(path))
-        if not path.exists():
-            raise FileNotFoundError(f"No se encuentra el archivo o directorio {path}")
+            # La raíz será la configuración local del programa
+            path = CONFIG_PATH / path
         return path
