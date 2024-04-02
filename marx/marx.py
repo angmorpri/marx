@@ -20,7 +20,7 @@ from marx.util import get_most_recent_db
 PATHS_CFG_FILE = Path(__file__).parent.parent / "config" / "paths.cfg"
 
 
-class MarxAPI:
+class Marx:
     """API de Marx.
 
     Se presentan las siguientes funciones:
@@ -80,11 +80,15 @@ class MarxAPI:
         """
         self._adapter.save(prefix="APIMOD")
 
-    def autoquotas(self, date: datetime | None = None, cfg_file: Path | None = None) -> None:
+    def autoquotas(
+        self, date: datetime | None = None, cfg_file: Path | None = None
+    ) -> Distribution:
         """Generador de cuotas mensuales.
 
         De no especificarse un archivo de configuración alternativo, se usará
         el cargado por defecto desde el archivo de configuración principal.
+
+        Devuelve la distribución generada.
 
         """
         date = date or datetime.now()
@@ -100,16 +104,20 @@ class MarxAPI:
             )
 
         distr = Distribution.from_cfg(self._adapter.suite, cfg_file)
-        distr.prepare(show=False)
+        distr.prepare(verbose=False)
         distr.run(date=date)
 
-        return None
+        return distr
 
-    def autoinvest(self, date: datetime | None = None, cfg_file: Path | None = None) -> None:
+    def autoinvest(
+        self, date: datetime | None = None, cfg_file: Path | None = None
+    ) -> Distribution:
         """Generador de inversiones mensuales.
 
         De no especificarse un archivo de configuración alternativo, se usará
         el cargado por defecto desde el archivo de configuración principal.
+
+        Devuelve la distribución generada.
 
         """
         date = date or datetime.now()
@@ -125,14 +133,13 @@ class MarxAPI:
             )
 
         distr = Distribution.from_cfg(self._adapter.suite, cfg_file)
-        distr.prepare(show=False)
+        distr.prepare(verbose=False)
         distr.run(date=date)
-
-        return None
+        return distr
 
     def wageparser(
         self, target: str, date: datetime | None = None, cfg_file: Path | None = None
-    ) -> None:
+    ) -> WageParser:
         """Generador de eventos derivados de la nómina.
 
         'target' debe ser el nombre del archivo de nómina a procesar, que se
@@ -141,6 +148,8 @@ class MarxAPI:
 
         De no especificarse un archivo de configuración alternativo, se usará
         el cargado por defecto desde el archivo de configuración principal.
+
+        Devuelve el parser de nóminas generado.
 
         """
         wage_file = self._paths["wages-dir"] / (target + ".pdf")
@@ -161,10 +170,9 @@ class MarxAPI:
                 f"El archivo de configuración del parser de nóminas proporcionado no existe."
             )
 
-        wp = WageParser(self._adapter.suite, cfg_file)
-        wp.parse(wage_file, date=date, verbose=False)
-
-        return None
+        wp = WageParser(self._adapter.suite, cfg_path=cfg_file)
+        res = wp.parse(wage_file, date=date, verbose=False)
+        return res
 
     def set_path(self, key: str, new_path: str | Path) -> None:
         """Modifica el directorio o archivo usado por defecto para fuentes de
@@ -195,7 +203,7 @@ class MarxAPI:
 
         Si 'where' es un directorio, el archivo se guardará con el mismo
         nombre; si es un archivo, se guardará con el nombre proporcionado,
-        sobreescribiendo si ya existe.
+        sobrescribiendo si ya existe.
 
         Devuelve la ruta del nuevo archivo.
 

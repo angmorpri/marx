@@ -36,7 +36,7 @@ if __name__ == "__main__":
 
     # Configuración
     d = Distribution.from_cfg(adapter.suite, CFG_PATH)
-    d.prepare(show=True)
+    d.prepare(verbose=True)
     d.run(date=date)
 
     # Guardar

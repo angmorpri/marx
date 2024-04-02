@@ -95,7 +95,7 @@ class WageParser:
 
     def parse(
         self, path: str | Path, *, date: str | datetime | None = None, verbose: bool = False
-    ) -> None:
+    ) -> list[dict[str, Any]]:
         """Parsea el archivo PDF y añade los eventos a la base de datos.
 
         Comprueba que el parseo ha sido correcto comparando la suma de los
@@ -108,6 +108,8 @@ class WageParser:
 
         Para mostrar información detallada sobre el proceso de parseo, se puede
         activar el parámetro 'verbose'.
+
+        Devuelve una lista con los eventos generados en formato de diccionario.
 
         """
         # Comprobaciones del archivo
@@ -163,6 +165,7 @@ class WageParser:
         changes = {"pct": f"{irpf/100:.2%}".replace(".", ","), "whyextra": whyextra}
 
         # Creación de eventos
+        events = []
         for key in sorted(cfg_extra, key=lambda k: cfg_extra[k]["order"]):
             amount = wage[key]
             if amount == 0:
@@ -175,8 +178,10 @@ class WageParser:
             params["date"] = date
             params["amount"] = amount
             event = self.suite.events.new(id=-1, **params)
+            events.append(params)
             if verbose:
                 print(f"Evento creado: {event!s} || {event.details}")
+        return events
 
     def parse_page(
         self, page: PageObject, match_to_key: dict[str, str]

@@ -209,8 +209,8 @@ class Distribution:
 
     Y se proporcionan los siguientes métodos:
     - 'prepare': configura la distribución y comprueba si es posible. Con el
-        parámetro 'show' se puede indicar si se quiere mostrar el resultado por
-        pantalla.
+        parámetro 'verbose' se puede indicar si se quiere mostrar el resultado
+        por pantalla.
     - 'run': lleva a cabo la distribución. Si la distribución no es posible,
         se lanzará un ValueError. Si se proporciona una fecha, se usará esa como
         fecha de los eventos generados; si no, se usará la fecha actual.
@@ -289,7 +289,7 @@ class Distribution:
     def sinks(self) -> Collection[DistrSink]:
         return self._sinks
 
-    def prepare(self, *, show: bool = False) -> None:
+    def prepare(self, *, verbose: bool = False) -> None:
         """Prepara la distribución.
 
         Comprueba si es posible ejecutarla según una serie de criterios en
@@ -297,7 +297,7 @@ class Distribution:
         como cantidad absoluta; y si los sumideros son en ratio o en cantidad
         absoluta.
 
-        Si 'show' es True, se mostrará el resultado por pantalla.
+        Si 'verbose' es True, se mostrará el resultado por pantalla.
 
         """
         if self.__prepared__:
@@ -362,7 +362,7 @@ class Distribution:
                 sink.amount = sink.ratio * left
 
         # Resumen
-        if show:
+        if verbose:
             print(
                 f"De {self.source.target} se reparten {self.source.amount:.2f} € ({self.source.ratio:.2%})"
             )

@@ -11,18 +11,12 @@ sys.path.append(os.path.dirname(MARX_DIR))
 import time
 from datetime import datetime
 from pathlib import Path
+from pprint import pprint
 
-from marx.api import MarxAPI
+from marx import Marx
 
+IPATH = Path("C:/Users/angel/Desktop/autoi.cfg")
 
 if __name__ == "__main__":
-    api = MarxAPI()
+    api = Marx()
     print("Usando: ", api.current_source)
-    print()
-    print("Autoquotas")
-    api.autoquotas()
-    print("Autoinvest")
-    api.autoinvest()
-    print("Wage Parser")
-    api.wageparser("03-2024")
-    print("OK")
