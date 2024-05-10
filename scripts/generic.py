@@ -8,16 +8,23 @@ MARX_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__) + "/marx"))
 sys.path.append(os.path.dirname(MARX_DIR))
 
 
-import time
-from datetime import datetime
 from pathlib import Path
-from pprint import pprint
 
 from marx import Marx
+from marx.util import Pathfinder
 
-IPATH = Path("C:/Users/angel/Desktop/autoi.cfg")
+
+CONFIG_PATH = Path(__file__).parent.parent / "config" / "paths.cfg"
+
 
 if __name__ == "__main__":
-    api = Marx()
-    output = api.balance(datetime(2023, 10, 1), datetime(2024, 4, 1), "2w")
-    print(">>>", output)
+    paths = Pathfinder(CONFIG_PATH)
+    for key in (
+        "sources-dir",
+        "wages-dir",
+        "user-dir",
+        "autoinvest-config",
+        "autoquotas-config",
+        "wageparser-config",
+    ):
+        print(f"{key}: {paths.request(key)}")

@@ -2,3 +2,4 @@
 # Creado: 12/03/2024
 """Utilidades varias"""
 from .util import *
+from .pathfinder import Pathfinder
