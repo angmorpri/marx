@@ -55,6 +55,12 @@ class Pathfinder:
                     user_dir.mkdir(parents=True, exist_ok=True)
         self.default_dir = Path(default_dir or self.base.parent)
 
+    def keys(self) -> list[str]:
+        """Devuelve una lista con las claves de las rutas disponibles."""
+        cfg = configparser.RawConfigParser()
+        cfg.read(self.base, encoding="utf-8")
+        return cfg.options("paths")
+
     def request(self, section: str, *, errors: bool = True) -> Path | None:
         """Devuelve la ruta de un archivo dado su nombre clave.
 
@@ -103,3 +109,17 @@ class Pathfinder:
                 raise FileNotFoundError(f"No se encontró el archivo '{path}'")
             return None
         return path
+
+    def change(self, key: str, path: str | Path) -> None:
+        """Cambia la ruta de un archivo dado su nombre clave.
+
+        La clave dada debe existir, de lo contrario se lanzará una excepción.
+
+        """
+        if key not in self.keys():
+            raise KeyError(f"No se encontró la clave '{key}'")
+        cfg = configparser.RawConfigParser()
+        cfg.read(self.base, encoding="utf-8")
+        cfg.set("paths", key, str(path))
+        with open(self.base, "w", encoding="utf-8") as f:
+            cfg.write(f)

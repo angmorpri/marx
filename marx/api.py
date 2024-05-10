@@ -7,8 +7,6 @@ las herramientas del programa.
 
 """
 
-import configparser
-import os
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -18,14 +16,13 @@ from dateutil.relativedelta import relativedelta
 from marx.automation import Distribution, WageParser
 from marx.model import MarxAdapter
 from marx.reporting import Balance
-from marx.util import get_most_recent_db
+from marx.util import get_most_recent_db, Pathfinder
 
 
-CONFIG_PATH = Path(__file__).parent.parent / "config"
-PATHS_CFG_FILE = CONFIG_PATH / "paths.cfg"
+PATHS_CFG_FILE = Path(__file__).parent.parent / "config" / "paths.cfg"
 
 
-class Marx:
+class MarxAPI:
     """API de Marx.
 
     Se presentan las siguientes funciones:
@@ -39,30 +36,12 @@ class Marx:
 
     - balance: genera un balance para ciertas fechas.
 
-    - set_path: modifica el directorio o archivo usado por defecto para fuentes
-        de datos o configuraciones.
-    - copy_config: copia una configuración en un nuevo archivo para que sea
-        modificado por el usuario.
-
     El constructor no recibe argumentos.
 
     """
 
     def __init__(self) -> None:
-        # Carga directorios y archivos de configuración.
-        self._paths = {}
-        cfg = configparser.RawConfigParser()
-        cfg.read(PATHS_CFG_FILE, encoding="utf-8")
-        for key in cfg["paths"]:
-            self._paths[key] = self._get_path(cfg["paths"][key].strip('"'))
-            if not self._paths[key].exists():
-                if key == "user-dir":
-                    self._paths[key].mkdir()
-                else:
-                    raise FileNotFoundError(
-                        f"El archivo de {key!r} ({self._paths[key]!s}) no existe."
-                    )
-        # Carga la fuente de datos.
+        self.paths = Pathfinder(PATHS_CFG_FILE)
         self.update_source()
 
     # Propiedades de la API
@@ -75,11 +54,11 @@ class Marx:
     def update_source(self) -> None:
         """Actualiza la fuente utilizada a la más actual.
 
-        Busca en el directorio indicado en la clave 'sources' del archivo de
-        configuración principal.
+        Utiliza la clave "sources-dir" del archivo de rutas.
 
         """
-        self._source_db = get_most_recent_db(self._paths["sources-dir"], allow_prefixes=False)
+        sources_dir = self.paths.request("sources-dir")
+        self._source_db = get_most_recent_db(sources_dir, allow_prefixes=False)
         self._adapter = MarxAdapter(self._source_db)
         self._adapter.load()
 
@@ -109,7 +88,10 @@ class Marx:
                 f"La fecha proporcionada debe tener formato 'datetime.datetime', no {type(date)!s}"
             )
 
-        cfg_file = cfg_file or self._paths["autoquotas-config"]
+        if cfg_file:
+            cfg_file = self.paths.resolve(cfg_file)
+        else:
+            cfg_file = self.paths.request("autoquotas-config")
         if not cfg_file.exists():
             raise FileNotFoundError(
                 f"El archivo de configuración de cuotas mensuales proporcionado no existe."
@@ -138,7 +120,10 @@ class Marx:
                 f"La fecha proporcionada debe tener formato 'datetime.datetime', no {type(date)!s}"
             )
 
-        cfg_file = cfg_file or self._paths["autoinvest-config"]
+        if cfg_file:
+            cfg_file = self.paths.resolve(cfg_file)
+        else:
+            cfg_file = self.paths.request("autoinvest-config")
         if not cfg_file.exists():
             raise FileNotFoundError(
                 f"El archivo de configuración de inversiones mensuales proporcionado no existe."
@@ -164,19 +149,23 @@ class Marx:
         Devuelve el parser de nóminas generado.
 
         """
-        wage_file = self._paths["wages-dir"] / (target + ".pdf")
-        if not wage_file.exists():
-            raise FileNotFoundError(
-                f"No se encuentra el archivo de nómina con nombre {target} en {self._paths['wages-dir']}"
-            )
-
         date = date or datetime.now()
         if not isinstance(date, datetime):
             raise ValueError(
                 f"La fecha proporcionada debe tener formato 'datetime.datetime', no {type(date)!s}"
             )
 
-        cfg_file = cfg_file or self._paths["wageparser-config"]
+        wages_dir = self.paths.request("wages-dir")
+        wage_file = wages_dir / target
+        if not wage_file.exists():
+            raise FileNotFoundError(
+                f"No se encuentra el archivo de nómina con nombre {target} en {self._paths['wages-dir']}"
+            )
+
+        if cfg_file:
+            cfg_file = self.paths.resolve(cfg_file)
+        else:
+            cfg_file = self.paths.request("wageparser-config")
         if not cfg_file.exists():
             raise FileNotFoundError(
                 f"El archivo de configuración del parser de nóminas proporcionado no existe."
@@ -243,7 +232,7 @@ class Marx:
             dates.append(dates[-1] + relativedelta(**{unit: +step}))
 
         # Archivo de salida
-        output = output or self._paths["user-dir"]
+        output = output or self.paths.request("user-dir")
         if not output.exists():
             raise FileNotFoundError(f"El archivo o directorio de salida no existe.")
         if output.is_dir():
@@ -270,44 +259,27 @@ class Marx:
         Si no se encuentra la clave, se lanzará un error.
 
         """
-        if key not in self._paths:
-            raise KeyError(f"La clave '{key}' no se encuentra en el archivo de rutas.")
-        self._paths[key] = self._get_path(Path(new_path))
-        cfg = configparser.ConfigParser()
-        cfg.read(PATHS_CFG_FILE, encoding="utf-8")
-        cfg["paths"][key] = str(self._paths[key])
-        with open(PATHS_CFG_FILE, "w", encoding="utf-8") as file:
-            cfg.write(file)
+        self.paths.change(key, new_path)
 
-    def copy_config(self, key: str, where: str | Path) -> Path:
+    def copy_config(self, key: str, where: str | Path | None = None) -> Path:
         """Copia una configuración en un nuevo archivo para que pueda ser
         modificado por un usuario.
 
         Si 'where' es un directorio, el archivo se guardará con el mismo
         nombre; si es un archivo, se guardará con el nombre proporcionado,
-        sobrescribiendo si ya existe.
+        sobrescribiendo si ya existe. Si no se especifica, se guardará en el
+        directorio indicado por la clave 'user-dir'.
 
         Devuelve la ruta del nuevo archivo.
 
         """
-        if key not in self._paths:
+        if key not in self.paths.keys():
             raise KeyError(f"La clave '{key}' no se encuentra en el archivo de rutas.")
-        source = self._paths[key]
+        source = self.paths.request(key)
+        if where is None:
+            where = self.paths.request("user-dir")
         dest = Path(where)
         if dest.is_dir():
             dest = dest / source.name
         shutil.copyfile(source, dest)
         return dest
-
-    # Interno
-    def _get_path(self, path: str | Path) -> Path:
-        """Almacena una ruta a un archivo a partir de 'path'.
-
-        Si la ruta no existe, lanza un error.
-
-        """
-        path = Path(os.path.expandvars(path))
-        if not path.is_absolute():
-            # La raíz será la configuración local del programa
-            path = CONFIG_PATH / path
-        return path

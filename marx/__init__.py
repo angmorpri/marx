@@ -2,4 +2,4 @@
 # Creado: 24/01/2024
 """Marx: Gestor de contabilidad y finanzas personales."""
 
-from .marx import Marx
+from .api import MarxAPI
