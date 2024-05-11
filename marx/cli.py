@@ -12,7 +12,7 @@ línea de comandos.
 """
 
 import argparse
-from datetime import date, datetime
+from datetime import datetime
 
 from marx import MarxAPI
 
@@ -55,14 +55,13 @@ Usa 'help' o 'h' para ver las opciones disponibles.
 Usa 'exit' o 'x' para salir.            
 """
             )
-            while True:
-                cmd = input(">>> ")
+            self._cont = True
+            while self._cont:
+                cmd = input("\n>>> ")
                 try:
                     args = self.parser.parse_args(cmd.split())
                     args.func(args)
                 except SystemExit:
-                    if cmd in ("exit", "x"):
-                        break
                     continue
 
     def setup(self, interactive: bool = False):
@@ -218,12 +217,12 @@ Usa 'exit' o 'x' para salir.
         """Muestra o recarga la fuente de datos"""
         if args.update:
             self.marx.update_source()
-        print(f"Fuente de datos actual: {self.marx.source}")
+        print(f"Fuente de datos actual: {self.marx.current_source}")
 
     def _exit(self, args: argparse.Namespace) -> None:
         """Cerrar la interfaz"""
         print("¡Hasta luego!\n\n")
-        exit(0)
+        self._cont = False
 
     def _save(self, args: argparse.Namespace) -> None:
         """Guarda los datos en un archivo"""
