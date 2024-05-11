@@ -16,7 +16,7 @@ from typing import Any, Iterator
 
 from PyPDF2 import PdfReader, PageObject
 
-from marx.model import MarxDataSuite
+from marx.model import MarxDataSuite, Event
 
 
 DEFAULT_CFG = Path(__file__).parent.parent.parent / "config" / "wageparser.cfg"
@@ -95,7 +95,7 @@ class WageParser:
 
     def parse(
         self, path: str | Path, *, date: str | datetime | None = None, verbose: bool = False
-    ) -> list[dict[str, Any]]:
+    ) -> list[Event]:
         """Parsea el archivo PDF y añade los eventos a la base de datos.
 
         Comprueba que el parseo ha sido correcto comparando la suma de los
@@ -178,7 +178,7 @@ class WageParser:
             params["date"] = date
             params["amount"] = amount
             event = self.suite.events.new(id=-1, **params)
-            events.append(params)
+            events.append(event)
             if verbose:
                 print(f"Evento creado: {event!s} || {event.details}")
         return events

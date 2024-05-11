@@ -8,13 +8,14 @@ las herramientas del programa.
 """
 
 import shutil
+
 from datetime import datetime
 from pathlib import Path
 
 from dateutil.relativedelta import relativedelta
 
 from marx.automation import Distribution, WageParser
-from marx.model import MarxAdapter
+from marx.model import MarxAdapter, Event
 from marx.reporting import Balance
 from marx.util import get_most_recent_db, Pathfinder
 
@@ -135,31 +136,41 @@ class MarxAPI:
         return distr
 
     def wageparser(
-        self, target: str, date: datetime | None = None, cfg_file: Path | None = None
-    ) -> WageParser:
+        self, target: str | None = None, date: datetime | None = None, cfg_file: Path | None = None
+    ) -> tuple[Path, list[Event]]:
         """Generador de eventos derivados de la nómina.
 
-        'target' debe ser el nombre del archivo de nómina a procesar, que se
-        buscará en el directorio indicado en la clave 'wages-dir' del archivo
-        de configuración principal.
+        'target' debe ser el nombre del archivo de nómina a procesar (sin
+        extensión), que se buscará en el directorio indicado en la clave
+        'wages-dir' del archivo de configuración principal, y en todos los
+        subdirectorios. Si no se especifica ninguno, se escogerá el más
+        reciente, de acuerdo a su fecha de creación.
 
         De no especificarse un archivo de configuración alternativo, se usará
         el cargado por defecto desde el archivo de configuración principal.
 
-        Devuelve el parser de nóminas generado.
+        Devuelve la ruta de la nómina parseada, y la lista de eventos
+        generados.
 
         """
+        wages_dir = self.paths.request("wages-dir")
+        if target is None:
+            wage_file = sorted(wages_dir.glob("*.pdf"), key=lambda x: x.stat().st_ctime)[-1]
+        else:
+            for file in wages_dir.glob("**/*.pdf"):
+                if target in file.name:
+                    wage_file = file
+                    break
+            else:
+                raise FileNotFoundError(
+                    f"No se encuentra el archivo de nómina con nombre {target}"
+                    f" en {wages_dir!s} o sus subdirectorios"
+                )
+
         date = date or datetime.now()
         if not isinstance(date, datetime):
             raise ValueError(
                 f"La fecha proporcionada debe tener formato 'datetime.datetime', no {type(date)!s}"
-            )
-
-        wages_dir = self.paths.request("wages-dir")
-        wage_file = wages_dir / target
-        if not wage_file.exists():
-            raise FileNotFoundError(
-                f"No se encuentra el archivo de nómina con nombre {target} en {self._paths['wages-dir']}"
             )
 
         if cfg_file:
@@ -172,8 +183,8 @@ class MarxAPI:
             )
 
         wp = WageParser(self._adapter.suite, cfg_path=cfg_file)
-        res = wp.parse(wage_file, date=date, verbose=False)
-        return res
+        events = wp.parse(wage_file, date=date, verbose=False)
+        return wage_file, events
 
     def balance(
         self,
@@ -281,5 +292,7 @@ class MarxAPI:
         dest = Path(where)
         if dest.is_dir():
             dest = dest / source.name
+        if dest.exists():
+            dest.unlink()
         shutil.copyfile(source, dest)
         return dest

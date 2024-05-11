@@ -12,6 +12,7 @@ línea de comandos.
 """
 
 import argparse
+from datetime import date, datetime
 
 from marx import MarxAPI
 
@@ -39,12 +40,29 @@ class MarxCLI:
             args.func(args)
         else:
             self.setup(interactive=True)
-            print("¡Bienvenido a Marx! Usa 'exit' para salir.")
+            print(
+                """
+Bienvenido al gestor de finanzas personales
+
+    ███    ███ █████ ██████ ██   ██ 
+    ████  ██████   ████   ██ ██ ██  
+    ██ ████ ███████████████   ███   
+    ██  ██  ████   ████   ██ ██ ██  
+    ██      ████   ████   ████   ██ 
+            
+Usa 'help' o 'h' para ver las opciones disponibles.
+
+Usa 'exit' o 'x' para salir.            
+"""
+            )
             while True:
+                cmd = input(">>> ")
                 try:
-                    args = self.parser.parse_args(input("> ").split())
+                    args = self.parser.parse_args(cmd.split())
                     args.func(args)
                 except SystemExit:
+                    if cmd in ("exit", "x"):
+                        break
                     continue
 
     def setup(self, interactive: bool = False):
@@ -61,9 +79,138 @@ class MarxCLI:
         )
         p_source.set_defaults(func=self._source)
 
+        # Comando "save"
+        p_save = subparsers.add_parser("save", help="Guarda los datos en un archivo")
+        p_save.set_defaults(func=self._save)
+
+        # Comando "autoquotas"
+        p_autoquotas = subparsers.add_parser(
+            "autoquotas", aliases=["autoq", "q"], help="Calcula la distribución de cuotas mensuales"
+        )
+        p_autoquotas.add_argument(
+            "-d",
+            "--date",
+            action="store",
+            help="Fecha de la distribución, en formato YYYY-MM-DD. Por defecto, hoy.",
+        )
+        p_autoquotas.add_argument(
+            "--cfg",
+            action="store",
+            help="Archivo de configuración con los datos de la distribución",
+        )
+        p_autoquotas.set_defaults(func=self._autoquotas)
+
+        # Comando "autoinvest"
+        p_autoinvest = subparsers.add_parser(
+            "autoinvest", aliases=["autoi", "i"], help="Calcula el reparto de inversiones"
+        )
+        p_autoinvest.add_argument(
+            "-d",
+            "--date",
+            action="store",
+            help="Fecha de la distribución, en formato YYYY-MM-DD. Por defecto, hoy.",
+        )
+        p_autoinvest.add_argument(
+            "--cfg",
+            action="store",
+            help="Archivo de configuración con los datos de la distribución",
+        )
+        p_autoinvest.set_defaults(func=self._autoinvest)
+
+        # Comando "wageparser"
+        p_wageparser = subparsers.add_parser(
+            "wageparser", aliases=["wage", "w"], help="Extrae los datos de un recibo de sueldo"
+        )
+        p_wageparser.add_argument(
+            "-d",
+            "--date",
+            action="store",
+            help="Fecha de la distribución, en formato YYYY-MM-DD. Por defecto, hoy.",
+        )
+        p_wageparser.add_argument(
+            "-t",
+            "--target",
+            action="store",
+            help="Nombre del archivo de recibo de sueldo a procesar, con extensión",
+        )
+        p_wageparser.add_argument(
+            "--cfg",
+            action="store",
+            help="Archivo de configuración con los datos de la distribución",
+        )
+        p_wageparser.set_defaults(func=self._wageparser)
+
+        # Comando "balance"
+        p_balance = subparsers.add_parser(
+            "balance", aliases=["b"], help="Genera un balance con los datos actuales"
+        )
+        p_balance.add_argument(
+            "-s",
+            "--start",
+            action="store",
+            help="Fecha de inicio del balance, en formato YYYY-MM-DD",
+            required=True,
+        )
+        p_balance.add_argument(
+            "-e",
+            "--end",
+            action="store",
+            help="Fecha de fin del balance, en formato YYYY-MM-DD",
+            required=True,
+        )
+        p_balance.add_argument(
+            "-p",
+            "--step",
+            action="store",
+            help="Intervalo de tiempo del balance, en formato 'Xd' o 'Xm' (días o meses). Por defecto, '1m.'",
+        )
+        p_balance.add_argument(
+            "-o",
+            "--output",
+            action="store",
+            help="Nombre del archivo de salida del balance. Por defecto, '{user-dir}/balance.xlsx'.",
+        )
+        p_balance.add_argument(
+            "--sheet",
+            action="store",
+            help="Nombre o ID de la hoja de cálculo del archivo de salida. Por defecto, será la primera.",
+        )
+        p_balance.set_defaults(func=self._balance)
+
+        # Comando "config"
+        p_config = subparsers.add_parser(
+            "config", aliases=["cfg"], help="Configura los parámetros del programa"
+        )
+        p_config.add_argument(
+            "key",
+            action="store",
+            help="Nombre de la clave de configuración a modificar",
+        )
+        p_config.add_argument(
+            "-s",
+            "--set",
+            action="store",
+            nargs="?",
+            const=True,
+            help="Ruta del nuevo archivo para la clave",
+        )
+        p_config.add_argument(
+            "-c",
+            "--copy",
+            action="store",
+            nargs="?",
+            const=True,
+            help="Copiar archivo de configuración indicado por la clave",
+        )
+        p_config.set_defaults(func=self._config)
+
+        # Comandos sólo disponibles en modo interactivo
         if interactive:
-            p_exit = subparsers.add_parser("exit", help="Cerrar la interfaz")
+            p_exit = subparsers.add_parser("exit", aliases=["x"], help="Cerrar la interfaz")
             p_exit.set_defaults(func=self._exit)
+
+            p_help = subparsers.add_parser("help", aliases=["h"], help="Muestra esta ayuda")
+            p_help.set_defaults(func=lambda _: self.parser.print_help())
 
     # Comandos
 
@@ -71,9 +218,78 @@ class MarxCLI:
         """Muestra o recarga la fuente de datos"""
         if args.update:
             self.marx.update_source()
-        print(self.marx.current_source)
+        print(f"Fuente de datos actual: {self.marx.source}")
 
     def _exit(self, args: argparse.Namespace) -> None:
         """Cerrar la interfaz"""
-        print("¡Hasta luego!")
+        print("¡Hasta luego!\n\n")
         exit(0)
+
+    def _save(self, args: argparse.Namespace) -> None:
+        """Guarda los datos en un archivo"""
+        self.marx.save()
+        print("Datos guardados correctamente.")
+
+    def _autoquotas(self, args: argparse.Namespace) -> None:
+        """Calcula la distribución de cuotas mensuales"""
+        date = datetime.strptime(args.date, "%Y-%m-%d") if args.date else datetime.now()
+        res = self.marx.autoquotas(date, args.cfg)
+        res.show()
+        print("\nEventos generados:")
+        for event in res.events:
+            print("    ", event)
+
+    def _autoinvest(self, args: argparse.Namespace) -> None:
+        """Calcula el reparto de inversiones"""
+        date = datetime.strptime(args.date, "%Y-%m-%d") if args.date else datetime.now()
+        res = self.marx.autoinvest(date, args.cfg)
+        res.show()
+        print("\nEventos generados:")
+        for event in res.events:
+            print("    ", event)
+
+    def _wageparser(self, args: argparse.Namespace) -> None:
+        """Extrae los datos de un recibo de sueldo"""
+        date = datetime.strptime(args.date, "%Y-%m-%d") if args.date else datetime.now()
+        path, events = self.marx.wageparser(args.target, date, args.cfg)
+        print(f"Datos extraídos correctamente de {path}.")
+        print("Eventos generados:")
+        for event in events:
+            print(" - ", event)
+
+    def _balance(self, args: argparse.Namespace) -> None:
+        """Genera un balance con los datos actuales"""
+        if args.sheet:
+            if args.sheet.isdigit():
+                args.sheet = int(args.sheet)
+        res = self.marx.balance(
+            datetime.strptime(args.start, "%Y-%m-%d"),
+            datetime.strptime(args.end, "%Y-%m-%d"),
+            args.step,
+            args.output,
+            args.sheet or 0,
+        )
+        print(f"Balance guardado en '{res}'.")
+
+    def _config(self, args: argparse.Namespace) -> None:
+        """Configura los parámetros del programa"""
+        if args.key not in self.marx.paths.keys():
+            print(f"Clave de configuración '{args.key}' no válida.")
+            return
+        if not args.set and not args.copy:
+            print(self.marx.paths.request(args.key))
+        elif args.copy:
+            if args.copy is True:
+                dest = self.marx.copy_config(args.key)
+            else:
+                dest = self.marx.copy_config(args.key, args.copy)
+            print(f"Archivo de configuración para {args.key} copiado a '{dest}'.")
+            if args.set is True:
+                self.marx.set_path(args.key, dest)
+                print(f"Ruta para {args.key} cambiada a '{dest}'.")
+        elif args.set:
+            if args.set is True:
+                print("Ruta de archivo no especificada.")
+                return
+            res = self.marx.set_path(args.key, args.set)
+            print(f"Ruta para {args.key} cambiada a '{res}'.")

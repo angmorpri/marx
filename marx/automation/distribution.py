@@ -228,6 +228,7 @@ class Distribution:
 
         self._source = DistrSource()
         self._sinks = Collection(DistrSink, pkeys=["sid"])
+        self._events = []  # Lista de eventos generados
 
         self.__prepared__ = False
 
@@ -288,6 +289,10 @@ class Distribution:
     @property
     def sinks(self) -> Collection[DistrSink]:
         return self._sinks
+
+    @property
+    def events(self) -> list:
+        return self._events
 
     def prepare(self, *, verbose: bool = False) -> None:
         """Prepara la distribución.
@@ -398,8 +403,9 @@ class Distribution:
         if isinstance(date, str):
             date = datetime.strptime(date, "%Y-%m-%d")
 
+        self._events = []
         for sink in self._sinks:
-            self._suite.events.new(
+            event = self._suite.events.new(
                 id=-1,
                 date=date,
                 amount=sink.amount,
@@ -409,6 +415,15 @@ class Distribution:
                 concept=sink.concept,
                 details=sink.details,
             )
+            self._events.append(event)
 
     def __str__(self) -> str:
         return f"Distribution({self._source}, {len(self._sinks)} sumideros)"
+
+    def show(self) -> None:
+        """Muestra la distribución por pantalla de una forma organizada."""
+        print(
+            f"Se distribuyen {self.source.amount:.2f}€ o el {self.source.ratio:.2%} de {self.source.target} a:"
+        )
+        for sink in self.sinks:
+            print(f"  - {sink.target}: {sink.amount:.2f}€ o el {sink.ratio:.2%}")
