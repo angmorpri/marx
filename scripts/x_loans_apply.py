@@ -28,7 +28,7 @@ def apply_excel(adapter: MarxMapper, dir: str | Path) -> None:
         else:
             id = int(id)
         # Evento base
-        event = adapter.struct.events[id]
+        event = adapter.data.events[id]
         if not event:
             raise ValueError(f"Evento {id} no encontrado.")
         # Se añade la etiqueta a los detalles del evento

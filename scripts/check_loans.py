@@ -26,7 +26,7 @@ def find_tags(text: str) -> list[str]:
 
 def find_loans(adapter: MarxMapper) -> None:
     loans = {}
-    for event in adapter.struct.events.search(
+    for event in adapter.data.events.search(
         lambda ev: ev.category.code in ("B14", "A23"),
         status="closed",
     ):

@@ -35,7 +35,7 @@ if __name__ == "__main__":
     print(f"Fecha seleccionada: {date:%d/%m/%Y}")
 
     # Configuración
-    d = Distribution.from_cfg(adapter.struct, CFG_PATH)
+    d = Distribution.from_cfg(adapter.data, CFG_PATH)
     d.prepare(verbose=True)
     d.run(date=date)
 

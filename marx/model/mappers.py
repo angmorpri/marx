@@ -49,11 +49,11 @@ TABLES = {
 }
 
 BaseDataStruct = namedtuple(
-    "RawDataSuite",
+    "RawDataStruct",
     ["accounts", "categories", "notes", "recurring", "transactions", "transfers"],
 )
 
-MarxDataStruct = namedtuple("MarxDataSuite", ["accounts", "categories", "notes", "events"])
+MarxDataStruct = namedtuple("MarxDataStruct", ["accounts", "categories", "notes", "events"])
 
 
 class BaseMapper:
@@ -83,7 +83,7 @@ class BaseMapper:
 
     def __init__(self, db_path: str | Path):
         self.db_path = Path(db_path)
-        self.suite = None
+        self.data = None
 
     def load(self) -> BaseDataStruct:
         """Carga los datos de la base de datos.
@@ -91,10 +91,10 @@ class BaseMapper:
         Devuelve una estructura con las colecciones de datos cargadas.
 
         """
-        if self.suite:
-            return self.suite
+        if self.data:
+            return self.data
 
-        self.suite = BaseDataStruct(
+        self.data = BaseDataStruct(
             accounts=Collection(SimpleNamespace, pkeys=["id"]),
             categories=Collection(SimpleNamespace, pkeys=["id"]),
             notes=Collection(SimpleNamespace, pkeys=["id"]),
@@ -107,7 +107,7 @@ class BaseMapper:
             cursor = conn.cursor()
             for table, (name, *prefixes) in TABLES.items():
                 cursor.execute(f"SELECT * FROM {table}")
-                col = getattr(self.suite, name)
+                col = getattr(self.data, name)
                 for row in cursor.fetchall():
                     attrs = {}
                     for key in row.keys():
@@ -117,7 +117,7 @@ class BaseMapper:
                                 break
                         attrs[attr] = row[key]
                     col.new(**attrs)
-        return self.suite
+        return self.data
 
     def save(self, path: str | Path | None = None, *, only_update: bool = True) -> Path:
         """Guarda los datos en una base de datos SQLite3.
@@ -157,7 +157,7 @@ class BaseMapper:
             cursor = conn.cursor()
             for table, (name, *prefixes) in TABLES.items():
                 prefix = prefixes[0]
-                entities = getattr(self.suite, name)
+                entities = getattr(self.data, name)
                 # Nuevos datos
                 iids = []
                 for iid, entity in entities._new:
@@ -225,7 +225,7 @@ class MarxMapper:
         else:
             self.base = BaseMapper(source).load()
             self.db_path = Path(source)
-        self.struct = None
+        self.data = None
 
     def load(self) -> MarxDataStruct:
         """Carga los datos de la base de datos.
@@ -233,10 +233,10 @@ class MarxMapper:
         Devuelve una estructura con las colecciones de datos cargadas.
 
         """
-        if self.struct:
-            return self.struct
+        if self.data:
+            return self.data
 
-        self.struct = MarxDataStruct(
+        self.data = MarxDataStruct(
             accounts=Collection(Account, pkeys=["id", "name"]),
             categories=Collection(Category, pkeys=["id", "code", "title", "name"]),
             notes=Collection(Note, pkeys=["id"]),
@@ -245,7 +245,7 @@ class MarxMapper:
 
         # Cuentas
         for raw_account in self.base.accounts:
-            self.struct.accounts.new(
+            self.data.accounts.new(
                 id=raw_account.id,
                 name=raw_account.name,
                 order=raw_account.order,
@@ -254,7 +254,7 @@ class MarxMapper:
 
         # Categorías
         for raw_category in self.base.categories:
-            self.struct.categories.new(
+            self.data.categories.new(
                 id=raw_category.id,
                 name=raw_category.name,
                 icon=raw_category.icon,
@@ -264,7 +264,7 @@ class MarxMapper:
         # Categorías de traslado (vienen de 'notes')
         for raw_note in self.base.notes.search(lambda x: x.text.strip().startswith("[T")):
             catname = raw_note.text.strip().split("\n")[0]
-            self.struct.categories.new(
+            self.data.categories.new(
                 id=-raw_note.id,
                 name=catname[1:-1],
             )
@@ -272,7 +272,7 @@ class MarxMapper:
         # Notas
         for raw_note in self.base.notes.search(lambda x: not x.text.strip().startswith("[T")):
             target = ["payee", "payer", "note"][raw_note.payee_payer]
-            self.struct.notes.new(
+            self.data.notes.new(
                 id=raw_note.id,
                 text=raw_note.text,
                 target=target,
@@ -282,16 +282,16 @@ class MarxMapper:
         for raw_trans in self.base.transactions:
             date = datetime.strptime(raw_trans.date, "%Y%m%d")
             amount = round(raw_trans.amount, 2)
-            category = self.struct.categories[raw_trans.cat]
+            category = self.data.categories[raw_trans.cat]
             if category is None:
-                category = self.struct.categories.new(
+                category = self.data.categories.new(
                     raw_trans.cat,
                     f"X{raw_trans.cat:02}. UNKNOWN",
                     unknown=True,
                 )
-            account = self.struct.accounts[raw_trans.acc_id]
+            account = self.data.accounts[raw_trans.acc_id]
             if account is None:
-                account = self.struct.accounts.new(
+                account = self.data.accounts.new(
                     raw_trans.acc_id,
                     f"UNKNOWN_{raw_trans.acc_id:02}",
                     unknown=True,
@@ -310,7 +310,7 @@ class MarxMapper:
             details = _d if _d else ""
             status = "closed" if raw_trans.is_paid else "open"
             rsource = raw_trans.rec_id if raw_trans.is_bill else -1
-            self.struct.events.new(
+            self.data.events.new(
                 id=raw_trans.id,
                 date=date,
                 amount=amount,
@@ -327,35 +327,35 @@ class MarxMapper:
         for raw_trans in self.base.transfers:
             date = datetime.strptime(raw_trans.date, "%Y%m%d")
             amount = round(raw_trans.amount, 2)
-            orig = self.struct.accounts[raw_trans.from_id]
+            orig = self.data.accounts[raw_trans.from_id]
             if orig is None:
-                orig = self.struct.accounts.new(
+                orig = self.data.accounts.new(
                     raw_trans.from_id, f"UNKNOWN_{raw_trans.from_id:02}", unknown=True
                 )
-            dest = self.struct.accounts[raw_trans.to_id]
+            dest = self.data.accounts[raw_trans.to_id]
             if dest is None:
-                dest = self.struct.accounts.new(
+                dest = self.data.accounts.new(
                     raw_trans.to_id, f"UNKNOWN_{raw_trans.to_id:02}", unknown=True
                 )
             maybe_cat, *rest = raw_trans.note.split("\n")
             if maybe_cat.startswith("[") and maybe_cat.endswith("]"):
                 name = maybe_cat[1:-1]
-                category = self.struct.categories.get(name=name)
+                category = self.data.categories.get(name=name)
                 if category is None:
                     vname = "V" + name[1:]
-                    category = self.struct.categories.get(name=vname)
+                    category = self.data.categories.get(name=vname)
                     if category is None:
-                        category = self.struct.categories.new(
+                        category = self.data.categories.new(
                             id=-999,
                             name=vname,
                             unknown=True,
                         )
             else:
-                category = self.struct.categories.get(code="T14")
+                category = self.data.categories.get(code="T14")
                 rest = [maybe_cat] + rest
             concept = rest[0].strip() if rest else "Sin concepto"
             details = "\n".join(rest[1:]).strip() if rest[1:] else ""
-            self.struct.events.new(
+            self.data.events.new(
                 id=-raw_trans.id,
                 date=date,
                 amount=amount,
@@ -370,16 +370,16 @@ class MarxMapper:
         for raw_trans in self.base.recurring:
             date = datetime.strptime(raw_trans.date, "%Y%m%d")
             amount = round(raw_trans.amount, 2)
-            category = self.struct.categories[raw_trans.cat]
+            category = self.data.categories[raw_trans.cat]
             if category is None:
-                category = self.struct.categories.new(
+                category = self.data.categories.new(
                     raw_trans.cat,
                     f"X{raw_trans.cat:02}. UNKNOWN",
                     unknown=True,
                 )
-            account = self.struct.accounts[raw_trans.acc_id]
+            account = self.data.accounts[raw_trans.acc_id]
             if account is None:
-                account = self.struct.accounts.new(
+                account = self.data.accounts.new(
                     raw_trans.acc_id,
                     f"UNKNOWN_{raw_trans.acc_id:02}",
                     unknown=True,
@@ -397,7 +397,7 @@ class MarxMapper:
             concept = _c if _c else "Sin concepto"
             details = _d if _d else ""
             status = "recurring"
-            self.struct.events.new(
+            self.data.events.new(
                 id=raw_trans.id * 1j,
                 date=date,
                 amount=amount,
@@ -409,7 +409,7 @@ class MarxMapper:
                 status=status,
             )
 
-        return self.struct
+        return self.data
 
     def save(
         self, path: str | Path | None = None, *, only_update: bool = True, prefix: str = "MOD"
@@ -454,7 +454,7 @@ class MarxMapper:
             # Novedades
             # Cuentas
             acc_iids = []
-            for iid, account in self.struct.accounts._new:
+            for iid, account in self.data.accounts._new:
                 if account.id != -1:
                     continue
                 params = {
@@ -475,7 +475,7 @@ class MarxMapper:
                 account.id = cursor.lastrowid
             # Categorías
             cat_iids = []
-            for iid, category in self.struct.categories._new:
+            for iid, category in self.data.categories._new:
                 if category.id != -1:
                     continue
                 if category.type != 0:
@@ -506,7 +506,7 @@ class MarxMapper:
                     category.id = -cursor.lastrowid
             # Notas
             note_iids = []
-            for iid, note in self.struct.notes._new:
+            for iid, note in self.data.notes._new:
                 if note.id != -1:
                     continue
                 params = {
@@ -522,7 +522,7 @@ class MarxMapper:
                 note.id = cursor.lastrowid
             # Eventos
             event_iids = []
-            for iid, event in self.struct.events._new:
+            for iid, event in self.data.events._new:
                 if event.id != -1:
                     continue
                 if event.type == 0:
@@ -589,7 +589,7 @@ class MarxMapper:
 
             # Modificaciones (parcial o total)
             # Cuentas
-            update = self.struct.accounts._changed if only_update else self.struct.accounts._active
+            update = self.data.accounts._changed if only_update else self.data.accounts._active
             for iid, account, *extra in update:
                 if iid in acc_iids:
                     continue
@@ -609,9 +609,7 @@ class MarxMapper:
                     (*changes.values(), account.rid),
                 )
             # Categorías
-            update = (
-                self.struct.categories._changed if only_update else self.struct.categories._active
-            )
+            update = self.data.categories._changed if only_update else self.data.categories._active
             for iid, category, *extra in update:
                 if iid in cat_iids:
                     continue
@@ -644,7 +642,7 @@ class MarxMapper:
                         (*changes.values(), category.rid),
                     )
             # Notas
-            update = self.struct.notes._changed if only_update else self.struct.notes._active
+            update = self.data.notes._changed if only_update else self.data.notes._active
             for iid, note, *extra in update:
                 if iid in note_iids:
                     continue
@@ -664,7 +662,7 @@ class MarxMapper:
                     (*changes.values(), note.rid),
                 )
             # Eventos
-            update = self.struct.events._changed if only_update else self.struct.events._active
+            update = self.data.events._changed if only_update else self.data.events._active
             for iid, event, *extra in update:
                 if iid in event_iids:
                     continue
@@ -735,16 +733,16 @@ class MarxMapper:
                         )
 
             # Datos eliminados
-            for iid, account in self.struct.accounts._deleted:
+            for iid, account in self.data.accounts._deleted:
                 cursor.execute(f"DELETE FROM tbl_account WHERE acc_id = {account.rid}")
-            for iid, category in self.struct.categories._deleted:
+            for iid, category in self.data.categories._deleted:
                 if category.type == 0:
                     cursor.execute(f"DELETE FROM tbl_notes WHERE note_id = {category.rid}")
                 else:
                     cursor.execute(f"DELETE FROM tbl_cat WHERE category_id = {category.rid}")
-            for iid, note in self.struct.notes._deleted:
+            for iid, note in self.data.notes._deleted:
                 cursor.execute(f"DELETE FROM tbl_notes WHERE notey_id = {note.rid}")
-            for iid, event in self.struct.events._deleted:
+            for iid, event in self.data.events._deleted:
                 if event.type == 0:
                     cursor.execute(f"DELETE FROM tbl_transfer WHERE trans_id = {event.rid}")
                 elif event.status == "recurring":

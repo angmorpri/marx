@@ -17,7 +17,7 @@ import openpyxl
 from openpyxl.cell.cell import Cell as OpenpyxlCell
 from openpyxl.worksheet.worksheet import Worksheet as OpenpyxlSheet
 
-from marx.util.excel import CellStyle
+from marx.reporting.excel import CellStyle
 
 
 CellIDLike = str | tuple[int, int]

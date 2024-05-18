@@ -3,10 +3,9 @@
 """Gestión y seguimiento de préstamos.
 
 Proporciona un mecanismo para gestionar préstamos en una contabilidad
-gestionada por Marx.
-
-Todos los eventos relacionados con un mismo préstamo deben presentar una
-etiqueta, que tendrá forma "[...]" y se debe incluir en los detalles.
+gestionada por Marx. Los eventos relacionados con un mismo préstamo deben 
+presentar una etiqueta diferenciante, que tendrá forma "[...]" y se debe
+incluir en los detalles del evento.
 
 En líneas generales, un préstamo se compone de una serie de pagos y una serie
 de devoluciones. Sin embargo, si un préstamo se conoce que no va a ser devuelto
@@ -88,7 +87,7 @@ class Loan:
 
 
 class LoansHandler:
-    """Clase que gestiona los préstamos presentes en un balance.
+    """Interfaz para la gestión de préstamos en una contabilidad.
 
     Permite encontrarlos mediante el método 'find' y generar eventos de impago
     mediante 'create_default'.
@@ -97,8 +96,8 @@ class LoansHandler:
 
     """
 
-    def __init__(self, struct: MarxDataStruct) -> None:
-        self.struct = struct
+    def __init__(self, data: MarxDataStruct) -> None:
+        self.data = data
         self.loans = {}
 
     def find(
@@ -119,7 +118,7 @@ class LoansHandler:
         # Préstamos
         loans = {}
         loan_tag_pattern = r"\[([^\[\]]+)\]"
-        for event in self.struct.events.search(
+        for event in self.data.events.search(
             lambda ev: from_date <= ev.date <= to_date,
             lambda ev: ev.category.code in ("B14", "A23", "B15", "A41"),
             status=CLOSED,
@@ -182,7 +181,7 @@ class LoansHandler:
             -1,
             date=date,
             amount=loan.left,
-            category=self.struct.categories["B15"],
+            category=self.data.categories["B15"],
             orig=loan.paid[-1].orig,  # Cuenta origen del préstamo
             dest=loan.tag,  # Etiqueta del préstamo
             concept="Impago de préstamo",
@@ -192,7 +191,7 @@ class LoansHandler:
             -1,
             date=date,
             amount=loan.left,
-            category=self.struct.categories["A41"],
+            category=self.data.categories["A41"],
             orig="Impago de préstamo",
             dest=loan.paid[-1].orig,  # Cuenta origen del préstamo
             concept="Ajuste de balance por impago",

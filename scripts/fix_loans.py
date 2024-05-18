@@ -27,7 +27,7 @@ if __name__ == "__main__":
 
     # LOANS
     print(">>> Préstamos:")
-    loans = find_loans(adapter.struct)
+    loans = find_loans(adapter.data)
     for loan in loans.values():
         print(loan)
     print()
@@ -35,14 +35,14 @@ if __name__ == "__main__":
     # Fix
     print(">>> Se ajusta uno para crear un impago.")
     default, fix = loans["THORLT"].generate_default(15)
-    adapter.struct.events.add(default)
-    adapter.struct.events.add(fix)
+    adapter.data.events.add(default)
+    adapter.data.events.add(fix)
     out = adapter.save()
     print()
 
     # Recalcular préstamos para garantizar que han cambiado
     print(">>> Nuevo estado de los préstamos:")
-    loans = find_loans(adapter.struct)
+    loans = find_loans(adapter.data)
     for loan in loans.values():
         print(loan)
     print()

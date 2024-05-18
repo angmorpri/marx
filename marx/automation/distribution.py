@@ -1,11 +1,18 @@
 # Python 3.10.11
 # Creado: 24/02/2024
-"""Clase para automatizar distribuciones de capital entre cuentas y 
-contrapartes.
+"""Gestión automatizada de distribuciones de capital entre cuentas.
 
-Define la clase Distribution, que permite configurar una fuente y uno o varios
-sumideros de capital, junto con la cantidad a distribuir, en formato absoluto o
-relativo.
+Una distribución se representa con un origen y uno o varios destinos, cada uno
+de los cuales compuesto de una cantidad fija que tiene que ser distribuida, o
+un porcentaje de la cantidad total a distribuir.
+
+Se definen las clases 'DistrSource' y 'DistrSink' para representar,
+respectivamente, el origen y los destinos de la distribución. A su vez, la
+clase 'Distribution' actúa como interfaz para configurar y llevar a cabo la
+distribución.
+
+Se pueden utilizar archivos de configuración INI para definir distribuciones
+complejas.
 
 """
 from __future__ import annotations
@@ -22,27 +29,25 @@ Counterpart = str
 
 
 class DistrSource:
-    """Fuente de capital a distribuir.
+    """Fuente del capital a distribuir.
 
-    Está formada por un origen ('target'), que puede ser una cuenta o un
-    pagador; y una cantidad ('amount'/'ratio'), que indica la cantidad a
-    distribuir.
+    Se compone de un origen ('target'), que puede ser una cuenta o un pagador;
+    y de una cantidad, que a su vez puede indicarse como un valor absoluto
+    ('amount') o como un porcentaje del total disponible en la cuenta
+    ('ratio'). En este último caso, el origen debe ser una cuenta.
 
-    Para definir 'target' como una cuenta, se puede pasar directamente un
-    objeto de la clase Account; o, alternativamente, un string con el nombre
-    de la cuenta precedido por el símbolo '@' (ej. '@cuenta').
+    Para definir el origen, se debe modificar el atributo 'target'. Éste
+    admite, para cuentas, objetos de la clase 'Account' o bien el nombre de la
+    cuenta precedido por '@'. En cualquier otro caso, se considerará que se
+    indica un pagador.
 
-    La cantidad puede ser definida de forma absoluta o relativa. El primer caso
-    es válido tanto si el origen es una cuenta como si es un pagador: sólo se
-    usará para garantizar que no se exceda dicha cantidad a la hora de repartir
-    a los sumideros. El segundo caso sólo es válido si el origen es una cuenta,
-    y determinará qué porcentaje de la cantidad acumulada en ésta se reparte.
-    Si la cantidad es None o no se puede aplicar, se asumirá que es el total
-    acumulado en la cuenta.
+    De la misma forma, la cantidad a distribuir se puede definir o de forma
+    absoluta mediante 'amount' o de forma relativa mediante 'ratio', teniendo
+    en cuenta que definir uno inhabilita el otro. En el caso de 'ratio', se
+    admiten tanto valores porcentuales entre [0, 1] como entre [0, 100].
 
-    El constructor no recibe parámetros. Antes de usar objetos de la clase, se
-    debe configurar a nivel de clase la colección de cuentas que usar, mediante
-    el atributo de clase 'ACCOUNTS'.
+    Antes de crear objetos de esta clase, se debe indicar la colección de
+    cuentas que se está usando mediante el atributo de clase 'ACCOUNTS'.
 
     """
 
@@ -105,10 +110,9 @@ class DistrSource:
 class DistrSink(DistrSource):
     """Sumidero de capital a distribuir.
 
-    Está formado de un destino ('target') y una cantidad ('amount'/'ratio'),
-    que se rigen por las mismas reglas que en DistrSource, con la única
-    diferencia de que ahora, si 'target' es una contraparte, sí acepta un ratio
-    como cantidad.
+    Se compone de un destino ('target'), que puede ser una cuenta o una
+    contraparte; y de una cantidad, que puede ser un valor absoluto ('amount')
+    o un porcentaje del total a distribuir ('ratio').
 
     Además, define los siguientes atributos que serán necesarios para generar
     un nuevo evento cuando se lleve a cabo el reparto:
@@ -125,10 +129,9 @@ class DistrSink(DistrSource):
     como identificador unívoco del sumidero. Si no se proporciona, se generará
     automáticamente.
 
-    Antes de usar objetos de la clase, se debe configurar a nivel de clase la
-    colección de cuentas que usar, mediante el atributo de clase 'ACCOUNTS'; y
-    la colección de categorías que usar, mediante el atributo de clase
-    'CATEGORIES'.
+    Antes de crear objetos de esta clase, se debe indicar la colección de
+    cuentas que se está usando mediante el atributo de clase 'ACCOUNTS', y la
+    de categorías mediante 'CATEGORIES'.
 
     """
 
@@ -187,44 +190,36 @@ class DistrSink(DistrSource):
 
 
 class Distribution:
-    """Distribución de capital entre cuentas y/o contrapartes.
+    """Interfaz para gestión automatizada de distribuciones de capital.
 
-    Esta clase presenta una interfaz en la que se pueden configurar una fuente
-    y uno o varios sumideros de capital, junto con la cantidad a distribuir. A
-    continuación, permite tanto comprobar que dicha distribución es posible, y
-    en caso afirmativo, llevarla a cabo, generando tantos nuevos eventos como
-    sean necesarios para reflejar la operación.
+    Presenta los mecanismos para:
+    1. Configurar un origen de la distribución.
+    2. Crear y añadir sumideros para la distribución.
+    3. Preparar la distribución, comprobando que es posible.
+    4. Llevar a cabo la distribución, generando los eventos necesarios.
 
-    Se pueden configurar los siguientes atributos:
-    - 'source': fuente de capital a distribuir. Debe ser una cuenta o un
-        pagador. En el primer caso, ésta puede representarse bien con objeto
-        de la clase Account o bien con una cadena que indique el nombre de la
-        cuenta precedido por el símbolo '@'.
-    - 'source.amount' o 'source.ratio': cantidad a distribuir. Si se define
-        'amount', se usará como cantidad absoluta; si se define 'ratio', se
-        usará como cantidad relativa.
-    - 'sinks': colección de sumideros. Se pueden añadir nuevos mediante el
-        método 'new', y también ubicar y modificar los ya existentes mediante
-        'get', 'update' y 'delete'.
+    Para configurar orígenes y sumideros se proporcionan los atributos 'source'
+    y 'sinks', respectivamente. El primero admite una cuenta o un pagador, y
+    crea, a partir de éste, un objeto de la clase DistrSource. El segundo es
+    una colección de sumideros inicialmente vacía, al que se pueden añadir
+    nuevos sumideros mediante el método 'new' o 'add'.
 
-    Y se proporcionan los siguientes métodos:
-    - 'prepare': configura la distribución y comprueba si es posible. Con el
-        parámetro 'verbose' se puede indicar si se quiere mostrar el resultado
-        por pantalla.
-    - 'run': lleva a cabo la distribución. Si la distribución no es posible,
-        se lanzará un ValueError. Si se proporciona una fecha, se usará esa como
-        fecha de los eventos generados; si no, se usará la fecha actual.
+    Para preparar la distribución, se debe llamar al método 'prepare'. Este
+    calcula si la distribución es posible. Para ejecutarla, generando los
+    eventos necesarios, se debe llamar al método 'run'.
 
-    El constructor requiere como parámetro una relación de datos de Marx que se
-    usarán para generar los resultados.
+    El constructor requiere como único argumento una estructura de datos de
+    Marx ya cargada. Alternativamente, se proporciona el método de clase
+    'from_cfg', que, además de la estructura, recibe la ruta a un archivo de
+    definición para una distribución, cargándola inmediatamente.
 
     """
 
     def __init__(self, data: MarxDataStruct) -> None:
-        self._suite = data
-        DistrSource.ACCOUNTS = self._suite.accounts
-        DistrSink.ACCOUNTS = self._suite.accounts
-        DistrSink.CATEGORIES = self._suite.categories
+        self._data = data
+        DistrSource.ACCOUNTS = self._data.accounts
+        DistrSink.ACCOUNTS = self._data.accounts
+        DistrSink.CATEGORIES = self._data.categories
 
         self._source = DistrSource()
         self._sinks = Collection(DistrSink, pkeys=["sid"])
@@ -322,9 +317,9 @@ class Distribution:
         if isinstance(self.source.target, Account):
             # Se calcula el saldo real de la cuenta
             real_amount = 0.0
-            for event in self._suite.events.search(orig=self.source.target, status="closed"):
+            for event in self._data.events.search(orig=self.source.target, status="closed"):
                 real_amount -= event.amount
-            for event in self._suite.events.search(dest=self.source.target, status="closed"):
+            for event in self._data.events.search(dest=self.source.target, status="closed"):
                 real_amount += event.amount
             if real_amount <= 0.0:
                 raise ValueError("La cuenta origen no tiene saldo suficiente para repartir.")
@@ -405,7 +400,7 @@ class Distribution:
 
         self._events = []
         for sink in self._sinks:
-            event = self._suite.events.new(
+            event = self._data.events.new(
                 id=-1,
                 date=date,
                 amount=sink.amount,

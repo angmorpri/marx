@@ -38,7 +38,7 @@ def apply_excel(adapter: MarxMapper, dir: str | Path) -> None:
                 id = complex(id) if "j" in id else int(id)
             else:
                 id = int(id)
-            event = adapter.struct.events[id]
+            event = adapter.data.events[id]
             if not event:
                 raise ValueError(f"Evento {id} no encontrado ({row})")
             _, _, concept, _, new_category_id, *_ = row
@@ -46,7 +46,7 @@ def apply_excel(adapter: MarxMapper, dir: str | Path) -> None:
                 print(f"[{id}] Concepto cambiado: {event.concept} -> {concept}")
                 event.concept = concept
             if new_category_id:
-                new_category = adapter.struct.categories[new_category_id]
+                new_category = adapter.data.categories[new_category_id]
                 if not new_category:
                     raise ValueError(f"[{id}] Categoría no encontrada: {new_category_id}")
                 else:
@@ -69,7 +69,7 @@ def expenses_check(adapter: MarxMapper, dir: str | Path) -> None:
         all_currents |= set(currents.split("; "))
         all_news |= set(news.split("; "))
     # Categorías teóricas actuales
-    tcats = adapter.struct.categories.search(type=-1)
+    tcats = adapter.data.categories.search(type=-1)
     print("Categorías teóricas actuales: ", len(tcats))
     for category in tcats.sort("code"):
         print(f"  - {category.name}")
@@ -88,7 +88,7 @@ def expenses_check(adapter: MarxMapper, dir: str | Path) -> None:
 
 def apply_expenses(adapter: MarxMapper, dir: str | Path) -> None:
     """Aplica los cambios y ajustes en los gastos."""
-    categories = adapter.struct.categories
+    categories = adapter.data.categories
     wb = openpyxl.load_workbook(dir)
 
     # Cambios en los eventos
@@ -105,7 +105,7 @@ def apply_expenses(adapter: MarxMapper, dir: str | Path) -> None:
         cat_changes = {old_cat: next(new_cats) for old_cat in current_cat.split("; ")}
         for sid in ids.split("; "):
             id = complex(sid)
-            event = adapter.struct.events[id]
+            event = adapter.data.events[id]
             new_cat = cat_changes[event.category.name]
             event_changes[id] = (new_cat, extra_changes)
 
@@ -131,7 +131,7 @@ def apply_expenses(adapter: MarxMapper, dir: str | Path) -> None:
 
     # Aplicar cambios en los eventos
     for id, (new_cat, extra_changes) in event_changes.items():
-        event = adapter.struct.events[id]
+        event = adapter.data.events[id]
         extra_changes["category"] = categories.get(name=new_cat).entity
         print(">>>", extra_changes["category"])
         event.update(**extra_changes)
@@ -147,7 +147,7 @@ if __name__ == "__main__":
 
     if 0:
         apply_excel(adapter, MARX_AT_DESKTOP / "recat_1706724239.xlsx")
-        adapter.struct.categories.search(code="XXX").delete()
+        adapter.data.categories.search(code="XXX").delete()
         adapter.save()
 
     if 1:

@@ -111,5 +111,5 @@ if __name__ == "__main__":
     time.sleep(1)
     input()
 
-    for event in adapter.struct.events.sort("date"):
+    for event in adapter.data.events.sort("date"):
         print(event)

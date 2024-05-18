@@ -2,8 +2,8 @@
 # Creado: 25/03/2024
 """API de Marx.
 
-Define la clase "MarxAPI", que se puede instanciar para interactuar con todas
-las herramientas del programa.
+Expone todas las funciones necesarias para interactuar con el programa, a
+través de la interfaz 'MarxAPI'.
 
 """
 
@@ -24,20 +24,25 @@ PATHS_CFG_FILE = Path(__file__).parent.parent / "config" / "paths.cfg"
 
 
 class MarxAPI:
-    """API de Marx.
+    """API.
 
-    Se presentan las siguientes funciones:
+    Se exponen las siguientes funciones:
 
+    [general]
     - update_source: actualiza la fuente utilizada a la más actual.
     - save: guarda los datos modificados.
 
+    [automatización]
     - autoquotas: ejecuta el reparto de cuotas mensuales.
     - autoinvest: ejecuta el reparto de inversiones mensuales.
     - autowageparser: ejecuta el parser para nóminas.
 
+    [reporte]
     - balance: genera un balance para ciertas fechas.
 
-    El constructor no recibe argumentos.
+    [configuración]
+    - set_path: modifica el directorio o archivo usado por defecto.
+    - copy_config: copia una configuración en un nuevo archivo.
 
     """
 
@@ -45,13 +50,13 @@ class MarxAPI:
         self.paths = Pathfinder(PATHS_CFG_FILE)
         self.update_source()
 
-    # Propiedades de la API
     @property
     def current_source(self) -> Path:
         """Devuelve la fuente de datos actual."""
         return self._source_db
 
-    # Métodos de la API
+    # General
+
     def update_source(self) -> None:
         """Actualiza la fuente utilizada a la más actual.
 
@@ -60,8 +65,8 @@ class MarxAPI:
         """
         sources_dir = self.paths.request("sources-dir")
         self._source_db = get_most_recent_db(sources_dir, allow_prefixes=False)
-        self._adapter = MarxMapper(self._source_db)
-        self._adapter.load()
+        self._mapper = MarxMapper(self._source_db)
+        self._mapper.load()
 
     def save(self) -> None:
         """Guarda los cambios en la base de datos.
@@ -70,7 +75,9 @@ class MarxAPI:
         sufijo "APIMOD_".
 
         """
-        self._adapter.save(prefix="APIMOD")
+        self._mapper.save(prefix="APIMOD")
+
+    # Automatización
 
     def autoquotas(
         self, date: datetime | None = None, cfg_file: Path | None = None
@@ -98,7 +105,7 @@ class MarxAPI:
                 f"El archivo de configuración de cuotas mensuales proporcionado no existe."
             )
 
-        distr = Distribution.from_cfg(self._adapter.struct, cfg_file)
+        distr = Distribution.from_cfg(self._mapper.data, cfg_file)
         distr.prepare(verbose=False)
         distr.run(date=date)
 
@@ -130,7 +137,7 @@ class MarxAPI:
                 f"El archivo de configuración de inversiones mensuales proporcionado no existe."
             )
 
-        distr = Distribution.from_cfg(self._adapter.struct, cfg_file)
+        distr = Distribution.from_cfg(self._mapper.data, cfg_file)
         distr.prepare(verbose=False)
         distr.run(date=date)
         return distr
@@ -182,9 +189,11 @@ class MarxAPI:
                 f"El archivo de configuración del parser de nóminas proporcionado no existe."
             )
 
-        wp = WageParser(self._adapter.struct, cfg_path=cfg_file)
+        wp = WageParser(self._mapper.data, cfg_path=cfg_file)
         events = wp.parse(wage_file, date=date, verbose=False)
         return wage_file, events
+
+    # Reporte
 
     def balance(
         self,
@@ -250,10 +259,12 @@ class MarxAPI:
             output /= "balance.xlsx"
 
         # Resultado
-        balance = Balance(self._adapter.struct)
+        balance = Balance(self._mapper.data)
         table = balance.build(*dates)
         output = balance.report(table, format="excel", output=output, sheet=sheet_id)
         return output
+
+    # Configuración
 
     def set_path(self, key: str, new_path: str | Path) -> None:
         """Modifica el directorio o archivo usado por defecto para fuentes de

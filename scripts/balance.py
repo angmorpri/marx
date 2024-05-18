@@ -46,7 +46,7 @@ if __name__ == "__main__":
                 dates = _aux
 
     # Balance
-    balance = Balance(adapter.struct)
+    balance = Balance(adapter.data)
     table = balance.build(*dates)
     out = balance.report(table, format="excel", output=DMC_PATH, sheet=DMC_SHEET)
     print(">>>", out)

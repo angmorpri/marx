@@ -4,7 +4,7 @@
 
 from typing import Iterable
 
-from marx.util.excel import CellID
+from marx.reporting.excel import CellID
 
 
 class Formula:

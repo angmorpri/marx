@@ -39,7 +39,7 @@ def prepare_excel(adapter: MarxMapper, dir: str | Path) -> None:
             "Etiqueta",
         )
     )
-    for event in adapter.struct.events.search(
+    for event in adapter.data.events.search(
         lambda ev: ev.category.code in ("B14", "A23"),
         lambda ev: ev.date.year > 2021,
         status="closed",

@@ -40,7 +40,7 @@ def prepare_excel(adapter: MarxMapper, dir: str | Path) -> Path:
     # Ingresos y traslados se representan uno a uno
     for type, sheet in zip((1, 0), (income_sheet, transfer_sheet)):
         sheet.append(("ID", "Origen", "Destino", "Concepto", "Categoría actual", "Nueva categoría"))
-        for event in adapter.struct.events.search(type=type):
+        for event in adapter.data.events.search(type=type):
             sheet.append(
                 (
                     str(event.id),
@@ -58,7 +58,7 @@ def prepare_excel(adapter: MarxMapper, dir: str | Path) -> Path:
         ("ID", "Origen", "Destino", "Concepto", "Categoría actual", "Nueva categoría")
     )
     grouped = {}
-    for event in adapter.struct.events.search(type=-1):
+    for event in adapter.data.events.search(type=-1):
         if event.concept not in grouped:
             grouped[event.concept] = {
                 "id": set(),

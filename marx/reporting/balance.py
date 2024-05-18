@@ -8,7 +8,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Iterable, Literal
 
-from marx.model import MarxDataStruct, find_loans
+from marx.automation import LoansHandler
+from marx.model import MarxDataStruct
 from marx.reporting import TableBuilder
 from marx.reporting.excel import ExcelManager, CellID, StylesCatalog, Formula
 
@@ -37,7 +38,7 @@ class Balance:
     """
 
     def __init__(self, data: MarxDataStruct):
-        self.suite = data
+        self.data = data
 
     def build(self, *dates: datetime) -> TableBuilder:
         """Genera una tabla de balance general para cada fecha dada.
@@ -58,7 +59,7 @@ class Balance:
         table["Activos"].append("COR", "Activos corrientes", formula="@SUM_CHILDREN")
         table["Activos"].append("FIN", "Activos financieros", formula="@SUM_CHILDREN")
         # > Eventos
-        for event in self.suite.events.search(status="closed"):
+        for event in self.data.events.search(status="closed"):
             for account, sign in zip((event.orig, event.dest), (-1, 1)):
                 if isinstance(account, str) or account.unknown:
                     continue
@@ -83,8 +84,9 @@ class Balance:
                     if event.date <= datelimit:
                         target.values[key] += sign * event.amount
         # > Préstamos (cuentas a cobrar)
+        loans = LoansHandler(self.data)
         for key, datelimit in timetable.items():
-            for loan in find_loans(self.suite, to_date=datelimit).values():
+            for loan in loans.find(to_date=datelimit).values():
                 if loan.status != "open":
                     continue
                 cxc = table["COR"].append("Cuentas a cobrar", formula="@SUM_CHILDREN")

@@ -1,13 +1,12 @@
 # Python 3.10.11
 # Creado: 11/05/2024
-"""CLI para Marx.
+"""Cliente ligero para Marx por línea de comandos.
 
-Permite ejecutar Marx desde la línea de comandos, con diferentes opciones y
-argumentos. También implementa un menú interactivo para facilitar el uso del
-programa.
+Actúa como una interfaz para la API de Marx, enmascarando todas las operaciones
+como comandos.
 
-Se basa en el uso de "argparse" para gestionar los argumentos y opciones de la
-línea de comandos.
+Utiliza 'argparse' para gestionar los argumentos y opciones de la línea de
+comandos.
 
 """
 
@@ -18,7 +17,7 @@ from marx import MarxAPI
 
 
 class MarxCLI:
-    """CLI para Marx.
+    """Cliente de línea de comandos para Marx.
 
     Implementa los comandos y opciones para operar Marx desde la terminal.
     Presenta dos modos de uso: directo e interactivo. En el modo directo, se

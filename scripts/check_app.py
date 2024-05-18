@@ -19,7 +19,7 @@ if __name__ == "__main__":
     adapter = MarxMapper(source)
     adapter.load()
     budgets = defaultdict(int)
-    for event in adapter.struct.events.search(status="closed"):
+    for event in adapter.data.events.search(status="closed"):
         for account, sign in zip((event.orig, event.dest), (-1, 1)):
             if isinstance(account, str) or account.unknown:
                 continue

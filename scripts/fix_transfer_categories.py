@@ -69,13 +69,13 @@ if __name__ == "__main__":
     adapter.load()
 
     fix_transfers(adapter)
-    for trans in adapter.suite.transfers:
+    for trans in adapter.data.transfers:
         print(trans.note)
         print("-----------------------------")
     print("\n\n")
 
     fix_notes(adapter)
-    for note in adapter.suite.notes:
+    for note in adapter.data.notes:
         print(note.text)
 
     adapter.save()
