@@ -5,7 +5,7 @@ from datetime import datetime
 from tkinter.filedialog import askopenfilename
 
 from marx.automation import WageParser
-from marx.model import MarxAdapter
+from marx.model import MarxMapper
 from marx.util import get_most_recent_db
 
 
@@ -16,7 +16,7 @@ if __name__ == "__main__":
     print("[AUTO WAGE]")
     path = get_most_recent_db("G:/Mi unidad/MiBilletera Backups")
     print("Usando: ", path)
-    adapter = MarxAdapter(path)
+    adapter = MarxMapper(path)
     adapter.load()
 
     # Fecha
@@ -32,7 +32,7 @@ if __name__ == "__main__":
                 print("Fecha inválida")
 
     # WageParser
-    wp = WageParser(adapter.suite)
+    wp = WageParser(adapter.struct)
     wage = askopenfilename(initialdir=WAGES_DIR)
     wp.parse(wage, date=date, verbose=True)
 

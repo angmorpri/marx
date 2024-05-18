@@ -23,6 +23,8 @@ todavía. Al guardar, se le asigna un id válido.
 Cada una de estas clases pueden usarse individualmente, pero lo más común es
 usarlas a través de una colección.
 
+[TODO] Conversión de datos a JSON.
+
 """
 from __future__ import annotations
 

@@ -13,11 +13,11 @@ from pathlib import Path
 
 import openpyxl
 
-from marx.model import MarxAdapter
+from marx.model import MarxMapper
 from marx.util import get_most_recent_db
 
 
-def apply_excel(adapter: MarxAdapter, dir: str | Path) -> None:
+def apply_excel(adapter: MarxMapper, dir: str | Path) -> None:
     """Aplica los cambios en la Excel indicada."""
     wb = openpyxl.load_workbook(dir)
     sheet = wb.active
@@ -28,7 +28,7 @@ def apply_excel(adapter: MarxAdapter, dir: str | Path) -> None:
         else:
             id = int(id)
         # Evento base
-        event = adapter.suite.events[id]
+        event = adapter.struct.events[id]
         if not event:
             raise ValueError(f"Evento {id} no encontrado.")
         # Se añade la etiqueta a los detalles del evento
@@ -43,7 +43,7 @@ if __name__ == "__main__":
     path = get_most_recent_db("G:/Mi unidad/MiBilletera Backups")
     print(">>> Usando: ", path)
     time.sleep(0.25)
-    adapter = MarxAdapter(path)
+    adapter = MarxMapper(path)
     adapter.load()
 
     apply_excel(adapter, Path(__file__).parent.parent / "out" / "loans_1710286039.xlsx")

@@ -16,11 +16,11 @@ from pathlib import Path
 
 import openpyxl
 
-from marx.model import MarxAdapter
+from marx.model import MarxMapper
 from marx.util import get_most_recent_db
 
 
-def prepare_excel(adapter: MarxAdapter, dir: str | Path) -> None:
+def prepare_excel(adapter: MarxMapper, dir: str | Path) -> None:
     """Excel con los eventos de préstamo relacionados."""
     output = Path(dir) / f"loans_{int(time.time())}.xlsx"
     wb = openpyxl.Workbook()
@@ -39,7 +39,7 @@ def prepare_excel(adapter: MarxAdapter, dir: str | Path) -> None:
             "Etiqueta",
         )
     )
-    for event in adapter.suite.events.search(
+    for event in adapter.struct.events.search(
         lambda ev: ev.category.code in ("B14", "A23"),
         lambda ev: ev.date.year > 2021,
         status="closed",
@@ -64,7 +64,7 @@ if __name__ == "__main__":
     path = get_most_recent_db("G:/Mi unidad/MiBilletera Backups")
     print(">>> Usando: ", path)
     time.sleep(0.25)
-    adapter = MarxAdapter(path)
+    adapter = MarxMapper(path)
     adapter.load()
     prepare_excel(adapter, Path(__file__).parent.parent / "out")
     print("HECHO")

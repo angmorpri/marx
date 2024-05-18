@@ -9,17 +9,17 @@ MARX_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__) + "/marx"))
 sys.path.append(os.path.dirname(MARX_DIR))
 
 
-from marx.model import MarxAdapter
+from marx.model import MarxMapper
 from marx.util import get_most_recent_db
 
 
 if __name__ == "__main__":
     source = get_most_recent_db("G:/Mi unidad/MiBilletera Backups/")
     # source = "G:/Mi unidad/MiBilletera Backups/MOD_Ene_31_2024_ExpensoDB.db"
-    adapter = MarxAdapter(source)
+    adapter = MarxMapper(source)
     adapter.load()
     budgets = defaultdict(int)
-    for event in adapter.suite.events.search(status="closed"):
+    for event in adapter.struct.events.search(status="closed"):
         for account, sign in zip((event.orig, event.dest), (-1, 1)):
             if isinstance(account, str) or account.unknown:
                 continue

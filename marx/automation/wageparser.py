@@ -16,7 +16,7 @@ from typing import Any, Iterator
 
 from PyPDF2 import PdfReader, PageObject
 
-from marx.model import MarxDataSuite, Event
+from marx.model import MarxDataStruct, Event
 
 
 DEFAULT_CFG = Path(__file__).parent.parent.parent / "config" / "wageparser.cfg"
@@ -42,7 +42,7 @@ class WageParser:
 
     """
 
-    def __init__(self, data: MarxDataSuite, *, cfg_path: str | Path = DEFAULT_CFG):
+    def __init__(self, data: MarxDataStruct, *, cfg_path: str | Path = DEFAULT_CFG):
         self.suite = data
         self.cfg_path = cfg_path
 

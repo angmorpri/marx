@@ -14,14 +14,14 @@ sys.path.append(os.path.dirname(MARX_DIR))
 
 import re
 
-from marx.model import RawAdapter
+from marx.model import BaseMapper
 from marx.util import get_most_recent_db
 
 
 CATEGORY_PATTERN = "^[A-Z][A-Z0-9][A-Z0-9]\.\s.*"
 
 
-def fix_transfers(adapter: RawAdapter) -> None:
+def fix_transfers(adapter: BaseMapper) -> None:
     """Corrige la forma en la que las categorías de traslados se muestran.
 
     Como la aplicación no tiene categorías integradas para los traslados, la
@@ -46,7 +46,7 @@ def fix_transfers(adapter: RawAdapter) -> None:
         print(">>> Hecho")
 
 
-def fix_notes(adapter: RawAdapter) -> None:
+def fix_notes(adapter: BaseMapper) -> None:
     """Corrige las notas que se usan para representar las categorías."""
     suite = adapter.load()
     for note in suite.notes:
@@ -65,7 +65,7 @@ def fix_notes(adapter: RawAdapter) -> None:
 if __name__ == "__main__":
     most_recent = get_most_recent_db("G:/Mi unidad/MiBilletera Backups")
     input(f"Usando: {most_recent}")
-    adapter = RawAdapter(most_recent)
+    adapter = BaseMapper(most_recent)
     adapter.load()
 
     fix_transfers(adapter)

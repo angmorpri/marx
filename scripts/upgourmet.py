@@ -14,7 +14,7 @@ from pathlib import Path
 
 import openpyxl
 
-from marx.model import MarxAdapter
+from marx.model import MarxMapper
 from marx.util import get_most_recent_db
 
 
@@ -35,7 +35,7 @@ COUNTERPART_TRANSLATION = {
 
 
 class UpGourmet:
-    def __init__(self, adapter: MarxAdapter, path: str | Path) -> None:
+    def __init__(self, adapter: MarxMapper, path: str | Path) -> None:
         self.adapter = adapter
         self.path = path
         self.data = []
@@ -103,7 +103,7 @@ if __name__ == "__main__":
     print(">>> Usando: ", source)
     time.sleep(1)
 
-    adapter = MarxAdapter(source)
+    adapter = MarxMapper(source)
 
     ug = UpGourmet(adapter, "C:/Users/angel/Desktop/marx/UpGourmet.xlsx")
     ug.create_account()
@@ -111,5 +111,5 @@ if __name__ == "__main__":
     time.sleep(1)
     input()
 
-    for event in adapter.suite.events.sort("date"):
+    for event in adapter.struct.events.sort("date"):
         print(event)

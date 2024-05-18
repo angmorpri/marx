@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import random
 from types import MappingProxyType
-from typing import Any, Iterable, Literal
+from typing import Any, Iterable
 
 
 class _GUARD_CLASS:

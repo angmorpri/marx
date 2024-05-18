@@ -6,7 +6,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from marx.model import MarxAdapter
+from marx.model import MarxMapper
 from marx.util import get_most_recent_db
 from marx.reporting import Balance
 
@@ -20,7 +20,7 @@ if __name__ == "__main__":
     path = get_most_recent_db("G:/Mi unidad/MiBilletera Backups")
     print("Usando: ", path)
     time.sleep(0.25)
-    adapter = MarxAdapter(path)
+    adapter = MarxMapper(path)
     adapter.load()
 
     # Fecha(s)
@@ -46,7 +46,7 @@ if __name__ == "__main__":
                 dates = _aux
 
     # Balance
-    balance = Balance(adapter.suite)
+    balance = Balance(adapter.struct)
     table = balance.build(*dates)
     out = balance.report(table, format="excel", output=DMC_PATH, sheet=DMC_SHEET)
     print(">>>", out)

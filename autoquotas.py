@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 
 from marx.automation import Distribution
-from marx.model import MarxAdapter
+from marx.model import MarxMapper
 from marx.util import get_most_recent_db, parse_nested_cfg
 
 
@@ -18,7 +18,7 @@ if __name__ == "__main__":
     path = get_most_recent_db("G:/Mi unidad/MiBilletera Backups")
     print("Usando: ", path)
     time.sleep(0.25)
-    adapter = MarxAdapter(path)
+    adapter = MarxMapper(path)
     adapter.load()
 
     # Fecha
@@ -34,7 +34,7 @@ if __name__ == "__main__":
                 print("Fecha inválida")
 
     # Configuración
-    d = Distribution.from_cfg(adapter.suite, CFG_PATH)
+    d = Distribution.from_cfg(adapter.struct, CFG_PATH)
     d.prepare(verbose=True)
     d.run(date=date)
 

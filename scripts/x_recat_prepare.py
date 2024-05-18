@@ -13,14 +13,14 @@ from pathlib import Path
 
 import openpyxl
 
-from marx.model import MarxAdapter
+from marx.model import MarxMapper
 from marx.util import get_most_recent_db
 
 
 MARX_AT_DESKTOP = "C:/Users/angel/Desktop/marx"
 
 
-def prepare_excel(adapter: MarxAdapter, dir: str | Path) -> Path:
+def prepare_excel(adapter: MarxMapper, dir: str | Path) -> Path:
     """Genera el Excel en la carpeta especificada.
 
     El excel se compone de 3 hojas: ingresos, gastos y traslados. Cada hoja
@@ -40,7 +40,7 @@ def prepare_excel(adapter: MarxAdapter, dir: str | Path) -> Path:
     # Ingresos y traslados se representan uno a uno
     for type, sheet in zip((1, 0), (income_sheet, transfer_sheet)):
         sheet.append(("ID", "Origen", "Destino", "Concepto", "Categoría actual", "Nueva categoría"))
-        for event in adapter.suite.events.search(type=type):
+        for event in adapter.struct.events.search(type=type):
             sheet.append(
                 (
                     str(event.id),
@@ -58,7 +58,7 @@ def prepare_excel(adapter: MarxAdapter, dir: str | Path) -> Path:
         ("ID", "Origen", "Destino", "Concepto", "Categoría actual", "Nueva categoría")
     )
     grouped = {}
-    for event in adapter.suite.events.search(type=-1):
+    for event in adapter.struct.events.search(type=-1):
         if event.concept not in grouped:
             grouped[event.concept] = {
                 "id": set(),
@@ -92,7 +92,7 @@ def prepare_excel(adapter: MarxAdapter, dir: str | Path) -> Path:
 
 if __name__ == "__main__":
     source = get_most_recent_db("G:/Mi unidad/MiBilletera Backups")
-    adapter = MarxAdapter(source)
+    adapter = MarxMapper(source)
     adapter.load()
     excel = prepare_excel(adapter, MARX_AT_DESKTOP)
     print(f"HECHO: {excel}")

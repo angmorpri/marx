@@ -1,29 +1,30 @@
 # Python 3.10.11
 # Creado: 24/01/2024
-"""Adaptadores del modelo de datos a la base de datos.
+"""Mapeadores de datos para Marx.
 
-Marx utiliza como principal fuente de datos la base de datos SQLite3 que genera
-la aplicación MiBilletera al realizar un backup de sus datos. Estos datos
-pueden usarse en el programa de dos formas:
+Presenta diferentes mapeadores de datos que permiten cargar, transformar y
+gestionar el guardado de los datos básicos que requiere el programa para
+funcionar.
 
-    - Crudos: No hay transformación alguna, se usan tal cual vienen de la base
-        de datos. Sirve para hacer modificaciones seguras o urgentes, a costa
-        de perder la abstracción del modelo de datos.
+Existen dos tipos de mapeadores:
+
+    - BaseMapper: Mapeador básico de la base de datos. No realiza
+        transformaciones en los datos, ni validaciones. Se usa para pruebas y
+        para hacer modificaciones directas en la base de datos.
         
-    - Adaptados: Se transforman los datos para que puedan ser usados por las
-        herramientas principales de Marx, como los automatizadores de tareas
-        o los reportes. Abstraen el modelo de datos, pero pueden ser más
-        difíciles de modificar.
-        
-Las clases implementadas son, respectivamente, 'RawAdapter' y 'MarxAdapter'.
-Ambas reciben como parámetro la ruta a la base de datos, cargan los datos
-mediante el método 'load', y permiten volver a guardar con los cambios hechos
-mediante el método 'save'.
+    - MarxMapper: Mapeador y transformador de los datos de la base de datos.
+        Carga los datos y los transforma para que se adapten a los requisitos
+        del programa. Se usa para la ejecución normal del programa.
 
-Cada conjunto de datos de un mismo tipo se proporciona como un objeto de la
-clase 'Collection'. Al usar 'load', se almacena internamente en una namedtuple
-llamada 'suite'. Por ejemplo, para acceder a la colección de cuentas, se usaría
-'adapter.suite.accounts'.
+Ambos mapeadores permiten cargar los datos mediante el método 'load', y
+guardarlos mediante el método 'save'.
+
+Además, se proporcionan dos estructuras de datos para gestionarlos todos de
+forma centralizada. Estas están conformadas por colecciones de tipo
+'Collection', que permiten acceder a los datos de forma más sencilla y segura,
+además de registrar los cambios que se hagan para poder guardarlos
+eficientemente después. Estas estructuras son, respectivamente, 'BaseDataStruct'
+y 'MarxDataStruct'.
 
 """
 
@@ -34,11 +35,12 @@ from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 
-from marx.model import Collection, Account, Category, Note, Event
+from marx.model import Account, Category, Note, Event
+from marx.util import Collection
 
 
 TABLES = {
-    "tbl_account": ("accounts", "acc_"),  # (nombre destino, prefijos a eliminar)
+    "tbl_account": ("accounts", "acc_"),  # (nombre destino, prefijos a eliminar...)
     "tbl_cat": ("categories", "category_"),
     "tbl_notes": ("notes", "note_", "notey_"),
     "tbl_r_trans": ("recurring", "r_exp_"),
@@ -46,19 +48,22 @@ TABLES = {
     "tbl_transfer": ("transfers", "trans_"),
 }
 
-RawDataSuite = namedtuple(
+BaseDataStruct = namedtuple(
     "RawDataSuite",
     ["accounts", "categories", "notes", "recurring", "transactions", "transfers"],
 )
 
-MarxDataSuite = namedtuple("MarxDataSuite", ["accounts", "categories", "notes", "events"])
+MarxDataStruct = namedtuple("MarxDataSuite", ["accounts", "categories", "notes", "events"])
 
 
-class RawAdapter:
-    """Adaptador de datos "en crudo" de la base de datos.
+class BaseMapper:
+    """Mapeador básico de la base de datos.
 
-    Al cargar, presenta las siguientes colecciones en el atributo 'suite',
-    cada uno correspondiente a una tabla de la base de datos:
+    No modifica ni transforma el contenido de las tablas de la base de datos,
+    pero es útil para testear.
+
+    Presenta los datos a través de la estructura 'BaseDataStruct', que contiene
+    las siguientes colecciones:
 
         - accounts: Cuentas.
         - categories: Categorías.
@@ -67,13 +72,12 @@ class RawAdapter:
         - transactions: Transacciones.
         - transfers: Transferencias.
 
-    Todas estas colecciones se componen de instancias 'SimpleNamespace', que
-    mapean automáticamente los datos de cada tabla de la base de datos. Debido
-    a ello, se tiene que tener en cuenta que no hay ningún tipo de validación
-    de datos, por lo que si se modifican los datos de forma incorrecta, se
-    pueden producir errores al guardarlos de nuevo.
+    Cada elemento de cada tabla es representado mediante un 'SimpleNamespace',
+    que encapsula todos los campos de la tabla en cuestión. Nótese que esto
+    implica también que no existe ni validación ni casteo de datos.
 
-    El constructor recibe la ruta a la base de datos.
+    El constructor sólo recibe la ruta a la base de datos. Para cargar los
+    datos, se debe llamar al método 'load'. Para guardarlos, al método 'save'.
 
     """
 
@@ -81,16 +85,16 @@ class RawAdapter:
         self.db_path = Path(db_path)
         self.suite = None
 
-    def load(self) -> RawDataSuite:
+    def load(self) -> BaseDataStruct:
         """Carga los datos de la base de datos.
 
-        Devuelve una namedtuple con las colecciones de datos cargadas.
+        Devuelve una estructura con las colecciones de datos cargadas.
 
         """
         if self.suite:
             return self.suite
 
-        self.suite = RawDataSuite(
+        self.suite = BaseDataStruct(
             accounts=Collection(SimpleNamespace, pkeys=["id"]),
             categories=Collection(SimpleNamespace, pkeys=["id"]),
             notes=Collection(SimpleNamespace, pkeys=["id"]),
@@ -191,11 +195,14 @@ class RawAdapter:
                     cursor.execute(f"DELETE FROM {table} WHERE {pkey} = {entity.id}")
 
 
-class MarxAdapter:
-    """Adaptador de datos al formato usado por Marx.
+class MarxMapper:
+    """Mapeador y transformador de los datos de la base de datos.
 
-    Al cargar, presenta las siguientes colecciones en el atributo 'suite',
-    que agregan de forma lógica los diferentes tipos de datos de la base:
+    Carga los datos de las tablas y los transforma para que se adapten a los
+    requisitos del programa.
+
+    Presenta los datos a través de una estructura 'MarxDataStruct', que
+    contiene las siguientes coleciones:
 
         - accounts: Cuentas.
         - categories: Categorías.
@@ -203,34 +210,33 @@ class MarxAdapter:
         - events: Eventos. Esto incluye transacciones, transferencias y
             operaciones recurrentes.
 
-    Cada una de ellas es una colección tipo 'Collection', cuya clase base es,
-    respectivamente, 'Account', 'Category', 'Note' y 'Event'.
+    Cada una de ellas encapsula en una colección los modelos 'Account',
+    'Category', 'Note' y 'Event', respectivamente.
 
-    El constructor puede recibir o bien la ruta a la base de datos, o bien un
-    adaptador de datos en crudo tipo 'RawAdapter'.
+    El constructor recibe la ruta a la base de datos, o una estructura de datos
+    tipo 'BaseDataStruct' cargada.
 
     """
 
-    def __init__(self, source: str | Path | RawAdapter):
-        if isinstance(source, RawAdapter):
-            self.source = source
-            self.db_path = source.db_path
+    def __init__(self, source: str | Path | BaseDataStruct):
+        if isinstance(source, BaseDataStruct):
+            self.base = source
+            self.db_path = None
         else:
-            self.source = RawAdapter(source)
+            self.base = BaseMapper(source).load()
             self.db_path = Path(source)
-        self.suite = None
+        self.struct = None
 
-    def load(self) -> MarxDataSuite:
+    def load(self) -> MarxDataStruct:
         """Carga los datos de la base de datos.
 
-        Devuelve una namedtuple con las colecciones de datos cargadas.
+        Devuelve una estructura con las colecciones de datos cargadas.
 
         """
-        if self.suite:
-            return self.suite
-        raw_suite = self.source.load()
+        if self.struct:
+            return self.struct
 
-        self.suite = MarxDataSuite(
+        self.struct = MarxDataStruct(
             accounts=Collection(Account, pkeys=["id", "name"]),
             categories=Collection(Category, pkeys=["id", "code", "title", "name"]),
             notes=Collection(Note, pkeys=["id"]),
@@ -238,8 +244,8 @@ class MarxAdapter:
         )
 
         # Cuentas
-        for raw_account in raw_suite.accounts:
-            self.suite.accounts.new(
+        for raw_account in self.base.accounts:
+            self.struct.accounts.new(
                 id=raw_account.id,
                 name=raw_account.name,
                 order=raw_account.order,
@@ -247,8 +253,8 @@ class MarxAdapter:
             )
 
         # Categorías
-        for raw_category in raw_suite.categories:
-            self.suite.categories.new(
+        for raw_category in self.base.categories:
+            self.struct.categories.new(
                 id=raw_category.id,
                 name=raw_category.name,
                 icon=raw_category.icon,
@@ -256,36 +262,36 @@ class MarxAdapter:
             )
 
         # Categorías de traslado (vienen de 'notes')
-        for raw_note in raw_suite.notes.search(lambda x: x.text.strip().startswith("[T")):
+        for raw_note in self.base.notes.search(lambda x: x.text.strip().startswith("[T")):
             catname = raw_note.text.strip().split("\n")[0]
-            self.suite.categories.new(
+            self.struct.categories.new(
                 id=-raw_note.id,
                 name=catname[1:-1],
             )
 
         # Notas
-        for raw_note in raw_suite.notes.search(lambda x: not x.text.strip().startswith("[T")):
+        for raw_note in self.base.notes.search(lambda x: not x.text.strip().startswith("[T")):
             target = ["payee", "payer", "note"][raw_note.payee_payer]
-            self.suite.notes.new(
+            self.struct.notes.new(
                 id=raw_note.id,
                 text=raw_note.text,
                 target=target,
             )
 
         # Transacciones
-        for raw_trans in raw_suite.transactions:
+        for raw_trans in self.base.transactions:
             date = datetime.strptime(raw_trans.date, "%Y%m%d")
             amount = round(raw_trans.amount, 2)
-            category = self.suite.categories[raw_trans.cat]
+            category = self.struct.categories[raw_trans.cat]
             if category is None:
-                category = self.suite.categories.new(
+                category = self.struct.categories.new(
                     raw_trans.cat,
                     f"X{raw_trans.cat:02}. UNKNOWN",
                     unknown=True,
                 )
-            account = self.suite.accounts[raw_trans.acc_id]
+            account = self.struct.accounts[raw_trans.acc_id]
             if account is None:
-                account = self.suite.accounts.new(
+                account = self.struct.accounts.new(
                     raw_trans.acc_id,
                     f"UNKNOWN_{raw_trans.acc_id:02}",
                     unknown=True,
@@ -304,7 +310,7 @@ class MarxAdapter:
             details = _d if _d else ""
             status = "closed" if raw_trans.is_paid else "open"
             rsource = raw_trans.rec_id if raw_trans.is_bill else -1
-            self.suite.events.new(
+            self.struct.events.new(
                 id=raw_trans.id,
                 date=date,
                 amount=amount,
@@ -318,38 +324,38 @@ class MarxAdapter:
             )
 
         # Traslados
-        for raw_trans in raw_suite.transfers:
+        for raw_trans in self.base.transfers:
             date = datetime.strptime(raw_trans.date, "%Y%m%d")
             amount = round(raw_trans.amount, 2)
-            orig = self.suite.accounts[raw_trans.from_id]
+            orig = self.struct.accounts[raw_trans.from_id]
             if orig is None:
-                orig = self.suite.accounts.new(
+                orig = self.struct.accounts.new(
                     raw_trans.from_id, f"UNKNOWN_{raw_trans.from_id:02}", unknown=True
                 )
-            dest = self.suite.accounts[raw_trans.to_id]
+            dest = self.struct.accounts[raw_trans.to_id]
             if dest is None:
-                dest = self.suite.accounts.new(
+                dest = self.struct.accounts.new(
                     raw_trans.to_id, f"UNKNOWN_{raw_trans.to_id:02}", unknown=True
                 )
             maybe_cat, *rest = raw_trans.note.split("\n")
             if maybe_cat.startswith("[") and maybe_cat.endswith("]"):
                 name = maybe_cat[1:-1]
-                category = self.suite.categories.get(name=name)
+                category = self.struct.categories.get(name=name)
                 if category is None:
                     vname = "V" + name[1:]
-                    category = self.suite.categories.get(name=vname)
+                    category = self.struct.categories.get(name=vname)
                     if category is None:
-                        category = self.suite.categories.new(
+                        category = self.struct.categories.new(
                             id=-999,
                             name=vname,
                             unknown=True,
                         )
             else:
-                category = self.suite.categories.get(code="T14")
+                category = self.struct.categories.get(code="T14")
                 rest = [maybe_cat] + rest
             concept = rest[0].strip() if rest else "Sin concepto"
             details = "\n".join(rest[1:]).strip() if rest[1:] else ""
-            self.suite.events.new(
+            self.struct.events.new(
                 id=-raw_trans.id,
                 date=date,
                 amount=amount,
@@ -361,19 +367,19 @@ class MarxAdapter:
             )
 
         # Operaciones recurrentes
-        for raw_trans in raw_suite.recurring:
+        for raw_trans in self.base.recurring:
             date = datetime.strptime(raw_trans.date, "%Y%m%d")
             amount = round(raw_trans.amount, 2)
-            category = self.suite.categories[raw_trans.cat]
+            category = self.struct.categories[raw_trans.cat]
             if category is None:
-                category = self.suite.categories.new(
+                category = self.struct.categories.new(
                     raw_trans.cat,
                     f"X{raw_trans.cat:02}. UNKNOWN",
                     unknown=True,
                 )
-            account = self.suite.accounts[raw_trans.acc_id]
+            account = self.struct.accounts[raw_trans.acc_id]
             if account is None:
-                account = self.suite.accounts.new(
+                account = self.struct.accounts.new(
                     raw_trans.acc_id,
                     f"UNKNOWN_{raw_trans.acc_id:02}",
                     unknown=True,
@@ -391,7 +397,7 @@ class MarxAdapter:
             concept = _c if _c else "Sin concepto"
             details = _d if _d else ""
             status = "recurring"
-            self.suite.events.new(
+            self.struct.events.new(
                 id=raw_trans.id * 1j,
                 date=date,
                 amount=amount,
@@ -403,7 +409,7 @@ class MarxAdapter:
                 status=status,
             )
 
-        return self.suite
+        return self.struct
 
     def save(
         self, path: str | Path | None = None, *, only_update: bool = True, prefix: str = "MOD"
@@ -448,7 +454,7 @@ class MarxAdapter:
             # Novedades
             # Cuentas
             acc_iids = []
-            for iid, account in self.suite.accounts._new:
+            for iid, account in self.struct.accounts._new:
                 if account.id != -1:
                     continue
                 params = {
@@ -469,7 +475,7 @@ class MarxAdapter:
                 account.id = cursor.lastrowid
             # Categorías
             cat_iids = []
-            for iid, category in self.suite.categories._new:
+            for iid, category in self.struct.categories._new:
                 if category.id != -1:
                     continue
                 if category.type != 0:
@@ -500,7 +506,7 @@ class MarxAdapter:
                     category.id = -cursor.lastrowid
             # Notas
             note_iids = []
-            for iid, note in self.suite.notes._new:
+            for iid, note in self.struct.notes._new:
                 if note.id != -1:
                     continue
                 params = {
@@ -516,7 +522,7 @@ class MarxAdapter:
                 note.id = cursor.lastrowid
             # Eventos
             event_iids = []
-            for iid, event in self.suite.events._new:
+            for iid, event in self.struct.events._new:
                 if event.id != -1:
                     continue
                 if event.type == 0:
@@ -583,7 +589,7 @@ class MarxAdapter:
 
             # Modificaciones (parcial o total)
             # Cuentas
-            update = self.suite.accounts._changed if only_update else self.suite.accounts._active
+            update = self.struct.accounts._changed if only_update else self.struct.accounts._active
             for iid, account, *extra in update:
                 if iid in acc_iids:
                     continue
@@ -604,7 +610,7 @@ class MarxAdapter:
                 )
             # Categorías
             update = (
-                self.suite.categories._changed if only_update else self.suite.categories._active
+                self.struct.categories._changed if only_update else self.struct.categories._active
             )
             for iid, category, *extra in update:
                 if iid in cat_iids:
@@ -638,7 +644,7 @@ class MarxAdapter:
                         (*changes.values(), category.rid),
                     )
             # Notas
-            update = self.suite.notes._changed if only_update else self.suite.notes._active
+            update = self.struct.notes._changed if only_update else self.struct.notes._active
             for iid, note, *extra in update:
                 if iid in note_iids:
                     continue
@@ -658,7 +664,7 @@ class MarxAdapter:
                     (*changes.values(), note.rid),
                 )
             # Eventos
-            update = self.suite.events._changed if only_update else self.suite.events._active
+            update = self.struct.events._changed if only_update else self.struct.events._active
             for iid, event, *extra in update:
                 if iid in event_iids:
                     continue
@@ -729,16 +735,16 @@ class MarxAdapter:
                         )
 
             # Datos eliminados
-            for iid, account in self.suite.accounts._deleted:
+            for iid, account in self.struct.accounts._deleted:
                 cursor.execute(f"DELETE FROM tbl_account WHERE acc_id = {account.rid}")
-            for iid, category in self.suite.categories._deleted:
+            for iid, category in self.struct.categories._deleted:
                 if category.type == 0:
                     cursor.execute(f"DELETE FROM tbl_notes WHERE note_id = {category.rid}")
                 else:
                     cursor.execute(f"DELETE FROM tbl_cat WHERE category_id = {category.rid}")
-            for iid, note in self.suite.notes._deleted:
+            for iid, note in self.struct.notes._deleted:
                 cursor.execute(f"DELETE FROM tbl_notes WHERE notey_id = {note.rid}")
-            for iid, event in self.suite.events._deleted:
+            for iid, event in self.struct.events._deleted:
                 if event.type == 0:
                     cursor.execute(f"DELETE FROM tbl_transfer WHERE trans_id = {event.rid}")
                 elif event.status == "recurring":

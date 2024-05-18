@@ -14,8 +14,8 @@ import random
 import string
 from datetime import datetime
 
-from marx.model import Account, Category, Collection, MarxDataSuite
-from marx.util import parse_nested_cfg
+from marx.model import Account, Category, MarxDataStruct
+from marx.util import Collection, parse_nested_cfg
 
 
 Counterpart = str
@@ -220,7 +220,7 @@ class Distribution:
 
     """
 
-    def __init__(self, data: MarxDataSuite) -> None:
+    def __init__(self, data: MarxDataStruct) -> None:
         self._suite = data
         DistrSource.ACCOUNTS = self._suite.accounts
         DistrSink.ACCOUNTS = self._suite.accounts
@@ -233,7 +233,7 @@ class Distribution:
         self.__prepared__ = False
 
     @classmethod
-    def from_cfg(cls, data: MarxDataSuite, cfg_path: str) -> Distribution:
+    def from_cfg(cls, data: MarxDataStruct, cfg_path: str) -> Distribution:
         """Carga una distribución a partir de un archivo de configuración.
 
         En el archivo de configuración se deben especificar, al menos, los

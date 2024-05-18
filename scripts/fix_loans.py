@@ -12,7 +12,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from marx.model import MarxAdapter, find_loans
+from marx.model import MarxMapper, find_loans
 from marx.util import get_most_recent_db
 from marx.reporting import Balance
 
@@ -22,12 +22,12 @@ if __name__ == "__main__":
     path = get_most_recent_db("G:/Mi unidad/MiBilletera Backups")
     print(">>> Usando: ", path)
     time.sleep(0.25)
-    adapter = MarxAdapter(path)
+    adapter = MarxMapper(path)
     adapter.load()
 
     # LOANS
     print(">>> Préstamos:")
-    loans = find_loans(adapter.suite)
+    loans = find_loans(adapter.struct)
     for loan in loans.values():
         print(loan)
     print()
@@ -35,14 +35,14 @@ if __name__ == "__main__":
     # Fix
     print(">>> Se ajusta uno para crear un impago.")
     default, fix = loans["THORLT"].generate_default(15)
-    adapter.suite.events.add(default)
-    adapter.suite.events.add(fix)
+    adapter.struct.events.add(default)
+    adapter.struct.events.add(fix)
     out = adapter.save()
     print()
 
     # Recalcular préstamos para garantizar que han cambiado
     print(">>> Nuevo estado de los préstamos:")
-    loans = find_loans(adapter.suite)
+    loans = find_loans(adapter.struct)
     for loan in loans.values():
         print(loan)
     print()

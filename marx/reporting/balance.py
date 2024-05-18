@@ -8,9 +8,9 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Iterable, Literal
 
-from marx.model import MarxDataSuite, find_loans
+from marx.model import MarxDataStruct, find_loans
 from marx.reporting import TableBuilder
-from marx.util.excel import ExcelManager, CellID, StylesCatalog, Formula
+from marx.reporting.excel import ExcelManager, CellID, StylesCatalog, Formula
 
 
 STYLES_PATH = Path(__file__).parents[2] / "config" / "styles.xlsx"
@@ -36,7 +36,7 @@ class Balance:
 
     """
 
-    def __init__(self, data: MarxDataSuite):
+    def __init__(self, data: MarxDataStruct):
         self.suite = data
 
     def build(self, *dates: datetime) -> TableBuilder:

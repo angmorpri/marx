@@ -12,7 +12,7 @@ sys.path.append(os.path.dirname(MARX_DIR))
 from datetime import datetime
 
 from marx.automation import WageParser
-from marx.model import MarxAdapter
+from marx.model import MarxMapper
 from marx.util import get_most_recent_db
 
 
@@ -23,7 +23,7 @@ if __name__ == "__main__":
     print("[WAGE PARSER TEST]")
     path = get_most_recent_db("G:/Mi unidad/MiBilletera Backups")
     print("Usando: ", path)
-    adapter = MarxAdapter(path)
+    adapter = MarxMapper(path)
     adapter.load()
 
     # WageParser

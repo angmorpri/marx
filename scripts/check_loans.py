@@ -13,7 +13,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-from marx.model import MarxAdapter
+from marx.model import MarxMapper
 from marx.util import get_most_recent_db
 from marx.util.excel import ExcelManager
 
@@ -24,9 +24,9 @@ def find_tags(text: str) -> list[str]:
     return re.findall(pattern, text)
 
 
-def find_loans(adapter: MarxAdapter) -> None:
+def find_loans(adapter: MarxMapper) -> None:
     loans = {}
-    for event in adapter.suite.events.search(
+    for event in adapter.struct.events.search(
         lambda ev: ev.category.code in ("B14", "A23"),
         status="closed",
     ):
@@ -66,7 +66,7 @@ if __name__ == "__main__":
     path = get_most_recent_db("G:/Mi unidad/MiBilletera Backups")
     print(">>> Usando: ", path)
     time.sleep(0.25)
-    adapter = MarxAdapter(path)
+    adapter = MarxMapper(path)
     adapter.load()
 
     find_loans(adapter)

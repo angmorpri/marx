@@ -15,7 +15,7 @@ from pathlib import Path
 from dateutil.relativedelta import relativedelta
 
 from marx.automation import Distribution, WageParser
-from marx.model import MarxAdapter, Event
+from marx.model import MarxMapper, Event
 from marx.reporting import Balance
 from marx.util import get_most_recent_db, Pathfinder
 
@@ -60,7 +60,7 @@ class MarxAPI:
         """
         sources_dir = self.paths.request("sources-dir")
         self._source_db = get_most_recent_db(sources_dir, allow_prefixes=False)
-        self._adapter = MarxAdapter(self._source_db)
+        self._adapter = MarxMapper(self._source_db)
         self._adapter.load()
 
     def save(self) -> None:
@@ -98,7 +98,7 @@ class MarxAPI:
                 f"El archivo de configuración de cuotas mensuales proporcionado no existe."
             )
 
-        distr = Distribution.from_cfg(self._adapter.suite, cfg_file)
+        distr = Distribution.from_cfg(self._adapter.struct, cfg_file)
         distr.prepare(verbose=False)
         distr.run(date=date)
 
@@ -130,7 +130,7 @@ class MarxAPI:
                 f"El archivo de configuración de inversiones mensuales proporcionado no existe."
             )
 
-        distr = Distribution.from_cfg(self._adapter.suite, cfg_file)
+        distr = Distribution.from_cfg(self._adapter.struct, cfg_file)
         distr.prepare(verbose=False)
         distr.run(date=date)
         return distr
@@ -182,7 +182,7 @@ class MarxAPI:
                 f"El archivo de configuración del parser de nóminas proporcionado no existe."
             )
 
-        wp = WageParser(self._adapter.suite, cfg_path=cfg_file)
+        wp = WageParser(self._adapter.struct, cfg_path=cfg_file)
         events = wp.parse(wage_file, date=date, verbose=False)
         return wage_file, events
 
@@ -250,7 +250,7 @@ class MarxAPI:
             output /= "balance.xlsx"
 
         # Resultado
-        balance = Balance(self._adapter.suite)
+        balance = Balance(self._adapter.struct)
         table = balance.build(*dates)
         output = balance.report(table, format="excel", output=output, sheet=sheet_id)
         return output
