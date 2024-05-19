@@ -6,7 +6,6 @@ Expone todas las funciones necesarias para interactuar con el programa, a
 través de la interfaz 'MarxAPI'.
 
 """
-
 import shutil
 
 from datetime import datetime
@@ -57,16 +56,19 @@ class MarxAPI:
 
     # General
 
-    def update_source(self) -> None:
+    def update_source(self) -> Path:
         """Actualiza la fuente utilizada a la más actual.
 
         Utiliza la clave "sources-dir" del archivo de rutas.
+
+        Devuelve la nueva fuente de datos.
 
         """
         sources_dir = self.paths.request("sources-dir")
         self._source_db = get_most_recent_db(sources_dir, allow_prefixes=False)
         self._mapper = MarxMapper(self._source_db)
         self._mapper.load()
+        return self._source_db
 
     def save(self) -> None:
         """Guarda los cambios en la base de datos.

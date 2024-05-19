@@ -11,6 +11,7 @@ comandos.
 """
 
 import argparse
+import sys
 from datetime import datetime
 
 from marx import MarxAPI
@@ -291,3 +292,16 @@ Usa 'exit' o 'x' para salir.
                 return
             res = self.marx.set_path(args.key, args.set)
             print(f"Ruta para {args.key} cambiada a '{res}'.")
+
+
+if __name__ == "__main__":
+    if sys.argv[1:]:
+        MarxCLI(sys.argv[1:])
+    else:
+        try:
+            MarxCLI([])
+        except Exception as e:
+            print(f"Error: {e}")
+            print()
+        finally:
+            input("\nPresiona Enter para salir...")

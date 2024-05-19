@@ -8,7 +8,7 @@ MARX_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__) + "/marx"))
 sys.path.append(os.path.dirname(MARX_DIR))
 
 
-from marx.cli import MarxCLI
+from cli import MarxCLI
 
 
 if __name__ == "__main__":

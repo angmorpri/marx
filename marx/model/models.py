@@ -23,7 +23,7 @@ todavía. Al guardar, se le asigna un id válido.
 Cada una de estas clases pueden usarse individualmente, pero lo más común es
 usarlas a través de una colección.
 
-[TODO] Conversión de datos a JSON.
+Todos los objetos son convertibles a JSON mediante el método 'to_json'.
 
 """
 from __future__ import annotations
@@ -84,6 +84,15 @@ class Account:
 
     def __format__(self, spec: str) -> str:
         return self.name.__format__(spec)
+
+    def to_json(self):
+        return {
+            "id": self.rid,
+            "name": self.name,
+            "order": self.order,
+            "color": self.color,
+            "unknown": self.unknown,
+        }
 
 
 @dataclass
@@ -156,6 +165,15 @@ class Category:
             return f"[####] {self.name:30} ({self.icon:3}, {self.color})"
         return f"[{self.rid:04}] {self.name:30} ({self.icon:3}, {self.color})"
 
+    def to_json(self):
+        return {
+            "id": self.rid,
+            "name": self.name,
+            "icon": self.icon,
+            "color": self.color,
+            "unknown": self.unknown,
+        }
+
 
 @dataclass
 class Note:
@@ -189,6 +207,13 @@ class Note:
 
     def __str__(self) -> str:
         return f"[{self.rid:04}] {self.text:20} ({self.target})"
+
+    def to_json(self):
+        return {
+            "id": self.rid,
+            "text": self.text,
+            "target": self.target,
+        }
 
 
 @dataclass
@@ -301,6 +326,21 @@ class Event:
         if self.rsource and self.rsource != -1:
             flow = f"{flow} [P={self.rsource}]"
         return f"{head} {amount} {category} {flow} {self.concept}"
+
+    def to_json(self):
+        return {
+            "id": self.rid,
+            "date": self.date.isoformat(),
+            "amount": round(self.amount, 2),
+            "category": self.category.to_json(),
+            "orig": self.orig.to_json() if isinstance(self.orig, Account) else self.orig,
+            "dest": self.dest.to_json() if isinstance(self.dest, Account) else self.dest,
+            "concept": self.concept,
+            "details": self.details,
+            "status": self.status,
+            "rsource": self.rsource,
+            "type": self.type,
+        }
 
 
 if __name__ == "__main__":
