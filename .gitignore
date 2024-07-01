@@ -1,12 +1,14 @@
-# Personal
+# Documentación
 notes/
+
+# Archivos locales
 res/
 output/
 out/
 local/
-testing.py
-*.lnk
 
+# Archivos de pruebas
+testing.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
