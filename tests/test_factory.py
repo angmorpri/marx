@@ -86,6 +86,20 @@ def test_creation():
     fb.dbg_show("FALLBACK ITEM")
     factory.dbg_show("FACTORY AFTER FALLBACK")
 
+    # subset() meta
+    factory.any.dbg_show("CURRENT STATUS")
+    print("META DELETED:")
+    for item in factory.meta_deleted:
+        print(item)
+    print()
+    print("META CHANGED:")
+    for item, changes in factory.meta_changed:
+        print(item, changes)
+
+    # representación
+    print(factory)
+    factory.show()
+
 
 if __name__ == "__main__":
     test_creation()

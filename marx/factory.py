@@ -25,12 +25,14 @@ class Factory(Generic[FactoryItem]):
         super().__setattr__("_baseclass", None)
         super().__setattr__("_all", None)
         super().__setattr__("_status", None)
+        super().__setattr__("_changes", None)
         super().__setattr__("_handled", None)
         super().__setattr__("_inactive_are_visible", None)
         super().__setattr__("_parent", None)
         self._baseclass = base
         self._all = {}
         self._status = {}  # 0: eliminado, 1: activo, 2: modificado
+        self._changes = {}  # {<id>: [<set de atributos que han cambiado>]}
         self._handled = []  # IDs de los objetos manejados por esta lista
         self._inactive_are_visible = False
         self._parent = None  # referencia a la lista padre, si existe
@@ -60,6 +62,7 @@ class Factory(Generic[FactoryItem]):
         subset = Factory(self._baseclass)
         subset._all = self._all
         subset._status = self._status
+        subset._changes = self._changes
         subset._handled = ids
         if inactive_are_visible is None:
             subset._inactive_are_visible = self._inactive_are_visible
@@ -90,6 +93,23 @@ class Factory(Generic[FactoryItem]):
     def active(self) -> Factory[FactoryItem]:
         """Subconjunto con todos los objetos visibles de la lista"""
         return self._create_subset(self._handled, inactive_are_visible=False)
+
+    @property
+    def meta_deleted(self) -> Iterator[FactoryItem]:
+        """Itera sobre los objetos eliminados"""
+        return (self._all[id] for id in self._handled if self._status[id] == 0)
+
+    @property
+    def meta_changed(self) -> Iterator[tuple[FactoryItem, list[str]]]:
+        """Itera sobra los objetos modificados, junto con la lista de qué
+        atributos han cambiado
+
+        """
+        return (
+            (self._all[id], list(self._changes[id]))
+            for id in self._handled
+            if self._status[id] == 2
+        )
 
     def new(self, *args: Any, **kwargs: Any) -> Factory[FactoryItem]:
         """Crea un nuevo objeto industrializado, usando el constructor de su
@@ -161,7 +181,10 @@ class Factory(Generic[FactoryItem]):
             for attr, value in kwargs.items():
                 if hasattr(self._all[id], attr):
                     setattr(self._all[id], attr, value)
-                    self._status[id] = 2
+                    self._status[id] = self._status[id] and 2
+                    if id not in self._changes:
+                        self._changes[id] = set()
+                    self._changes[id].add(attr)
 
     def __setattr__(self, attr: str, value: Any) -> None:
         """Sugarcoat para 'update'"""
@@ -223,17 +246,11 @@ class Factory(Generic[FactoryItem]):
 
         'kwargs' se puede usar para filtrar por atributos específicos, donde la
         clave es el nombre del atributo y el valor es el valor que debe tener.
-        En este caso, se puede usar el atributo especial 'meta_status', que
-        hace referencia al estado interno del objeto (0: eliminado, 1: activo,
-        2: modificado).
 
         """
         # kwargs -> funcs
         for attr, value in kwargs.items():
-            if attr == "meta_status":
-                funcs += (lambda item, v=value: self._status[id] == v,)
-            else:
-                funcs += (lambda item, a=attr, v=value: getattr(item, a) == v,)
+            funcs += (lambda item, a=attr, v=value: getattr(item, a) == v,)
         # filtrar
         ids = [id for id in self._visible if all(f(self._all[id]) for f in funcs)]
         return self._create_subset(ids)
@@ -256,10 +273,23 @@ class Factory(Generic[FactoryItem]):
     # Representación
 
     def __repr__(self) -> str:
-        return f"Factory({self._baseclass.__name__}, {len(self)} objetos visibles)"
+        lv = len(self._visible)
+        lh = len(self._handled)
+        return f"Factory({self._baseclass.__name__}, v: {lv}, h: {lh})"
 
     def __str__(self) -> str:
-        return f"Factory de objetos '{self._baseclass.__name__}'"
+        return repr(self)
+
+    def show(self) -> None:
+        print("---")
+        print(self)
+        id_zeros = len(str(len(self._handled)))
+        for id in self._handled:
+            status = {0: "DEL", 1: "ACT", 2: "MOD"}[self._status[id]]
+            print(f" ->  {id:0>{id_zeros}} | {status} | {self._all[id]!r}")
+        print("---")
+
+    # Debugging
 
     def dbg_show(self, title: str = "<GENERIC>") -> None:
         print(title)
