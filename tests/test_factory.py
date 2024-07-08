@@ -1,13 +1,14 @@
 # Python 3.10.11
-# Creado: 02/08/2024
-"""Test de la clase Factory."""
+# Creado: 02/07/2024
+"""Test de la clase Factory"""
 import os
-from random import choice, randint
 import sys
 
 MARX_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__) + "/marx"))
 sys.path.append(os.path.dirname(MARX_DIR))
 
+
+from random import choice, randint
 
 from marx.factory import Factory
 
