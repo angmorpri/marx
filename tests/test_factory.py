@@ -10,7 +10,7 @@ sys.path.append(os.path.dirname(MARX_DIR))
 
 from random import choice, randint
 
-from marx.factory import Factory
+from marx.util import Factory
 
 
 class MyClass:

@@ -21,9 +21,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
-from marx.factory import Factory
 from marx.models import Account, Counterpart, Category, Event
-from marx.util import safely_rename_file
+from marx.util import Factory, safely_rename_file
 
 BaseDataStruct = namedtuple(
     "BaseDataStruct", ["accounts", "categories", "notes", "recurring", "transactions", "transfers"]
