@@ -22,7 +22,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from marx.factory import Factory
-from marx.model import Account, Counterpart, Category, Event
+from marx.models import Account, Counterpart, Category, Event
 from marx.util import safely_rename_file
 
 BaseDataStruct = namedtuple(
@@ -31,10 +31,10 @@ BaseDataStruct = namedtuple(
 MarxDataStruct = namedtuple("MarxDataStruct", ["accounts", "categories", "events"])
 
 
-DB_TABLES_METADATA = {
+DB_TABLES_INFO = {
     "tbl_account": {"target": "accounts", "prefixes": ["acc_"]},
     "tbl_cat": {"target": "categories", "prefixes": ["category_"]},
-    "tbl_note": {"target": "notes", "prefixes": ["note_", "notey_"]},
+    "tbl_notes": {"target": "notes", "prefixes": ["note_", "notey_"]},
     "tbl_r_trans": {"target": "recurring", "prefixes": ["r_exp_"]},
     "tbl_trans": {"target": "transactions", "prefixes": ["exp_"]},
     "tbl_transfer": {"target": "transfers", "prefixes": ["trans_"]},
@@ -73,13 +73,13 @@ class BaseMapper:
         with sqlite.connect(self.source) as conn:
             conn.row_factory = sqlite.Row
             cursor = conn.cursor()
-            for table, metadata in DB_TABLES_METADATA.items():
-                target = getattr(self.data, metadata["target"])
+            for table, info in DB_TABLES_INFO.items():
+                target = getattr(self.data, info["target"])
                 cursor.execute(f"SELECT * FROM {table}")
                 for row in cursor.fetchall():
                     attrs = {}
                     for key in row.keys():
-                        for prefix in metadata["prefixes"]:
+                        for prefix in info["prefixes"]:
                             attr = key.replace(prefix, "")
                             if attr != key:
                                 break
@@ -102,18 +102,9 @@ class BaseMapper:
 
         with sqlite.connect(self.dest) as conn:
             cursor = conn.cursor()
-            for table, metadata in DB_TABLES_METADATA.items():
-                prefix = metadata["prefixes"][0]
-                source = getattr(self.data, metadata["target"])
-                # INSERT
-                for item in source.get(id=-1):
-                    params = item.__dict__
-                    cursor.execute(
-                        f"INSERT INTO {table} ({', '.join(params.keys())})"
-                        f" VALUES ({', '.join(['?' for _ in params])})",
-                        tuple(params.values()),
-                    )
-                    item.id = cursor.lastrowid
+            for table, info in DB_TABLES_INFO.items():
+                prefix = info["prefixes"][0]
+                source = getattr(self.data, info["target"])
                 # UPDATE (sólo cambios)
                 for item, changes in source.subset(lambda x: x.id != -1).meta_changed:
                     fixed_changes = {}
@@ -127,6 +118,15 @@ class BaseMapper:
                         f" WHERE {pkey} = ?",
                         (*fixed_changes.values(), item.id),
                     )
+                # INSERT
+                for item in source.subset(id=-1):
+                    params = item.__dict__
+                    cursor.execute(
+                        f"INSERT INTO {table} ({', '.join(params.keys())})"
+                        f" VALUES ({', '.join(['?' for _ in params])})",
+                        tuple(params.values()),
+                    )
+                    item.id = cursor.lastrowid
                 # DELETE
                 for item in source.meta_deleted:
                     pkey = f"{prefix}id".replace("note_id", "notey_id")
@@ -188,83 +188,84 @@ class MarxMapper:
 
         # Eventos de ingreso y gasto, y eventos recurrentes
         for base_trans in chain(base.transactions, base.recurring):
-            date = datetime.strptime(base_trans.date, "%Y%m%d")
-            amount = round(base_trans.amount, 2)
-            category = (
-                self.data.categories.subset(id=base_trans.cat)
-                .fallback(
-                    id=base_category.id,
-                    name=f"X{base_trans.cat:02}. UNKNOWN",
-                    disabled=True,
+            for trans in base_trans:
+                date = datetime.strptime(trans.date, "%Y%m%d")
+                amount = round(trans.amount, 2)
+                category = (
+                    self.data.categories.subset(id=trans.cat)
+                    .fallback(
+                        id=base_category.id,
+                        name=f"X{trans.cat:02}. UNKNOWN",
+                        disabled=True,
+                    )
+                    .pullone()
                 )
-                .pullone()
-            )
-            account = (
-                self.data.accounts.subset(id=base_trans.acc_id)
-                .fallback(
-                    id=base_trans.acc_id,
-                    name=f"UNKNOWN_{base_trans.acc_id:02}",
-                    disabled=True,
+                account = (
+                    self.data.accounts.subset(id=trans.acc_id)
+                    .fallback(
+                        id=trans.acc_id,
+                        name=f"UNKNOWN_{trans.acc_id:02}",
+                        disabled=True,
+                    )
+                    .pullone()
                 )
-                .pullone()
-            )
-            counterpart = Counterpart(base_trans.payee_name)
-            if base_trans.is_debit:
-                orig, dest = counterpart, account
-            else:
-                orig, dest = account, counterpart
-            concept, *details = base_trans.note.split("\n")
-            concept = concept.strip() or "Sin concepto"
-            details = "\n".join(details).strip() or ""
-            # Estándar / Recurrente
-            if hasattr(base_trans, "is_bill"):
-                event_id = base_trans.id
-                status = Event.CLOSED if base_trans.is_paid else Event.OPEN
-                rsource = base_trans.rec_id if base_trans.is_bill else -1
-            else:
-                event_id = 1j * base_trans.id
-                status = Event.OPEN
-                rsource = -1
-            self.data.events.new(
-                id=event_id,
-                date=date,
-                amount=amount,
-                category=category,
-                orig=orig,
-                dest=dest,
-                concept=concept,
-                details=details,
-                status=status,
-                rsource=rsource,
-            )
+                counterpart = Counterpart(trans.payee_name)
+                if trans.is_debit:
+                    orig, dest = counterpart, account
+                else:
+                    orig, dest = account, counterpart
+                concept, *details = trans.note.split("\n")
+                concept = concept.strip() or "Sin concepto"
+                details = "\n".join(details).strip() or ""
+                # Estándar / Recurrente
+                if hasattr(trans.pullone(), "is_paid"):
+                    event_id = trans.id
+                    status = int(trans.is_paid)
+                    rsource = trans.rec_id if trans.is_bill else -1
+                else:
+                    event_id = 1j * trans.id
+                    status = Event.OPEN
+                    rsource = event_id
+                self.data.events.new(
+                    id=event_id,
+                    date=date,
+                    amount=amount,
+                    category=category,
+                    orig=orig,
+                    dest=dest,
+                    concept=concept,
+                    details=details,
+                    status=status,
+                    rsource=rsource,
+                )
 
         # Eventos de traslados entre cuentas
-        for base_trans in self.base.transfers:
-            date = datetime.strptime(base_trans.date, "%Y%m%d")
-            amount = round(base_trans.amount, 2)
+        for trans in base.transfers:
+            date = datetime.strptime(trans.date, "%Y%m%d")
+            amount = round(trans.amount, 2)
             orig = (
-                self.data.accounts.subset(id=base_trans.from_id)
+                self.data.accounts.subset(id=trans.from_id)
                 .fallback(
-                    id=base_trans.from_id,
-                    name=f"UNKNOWN_{base_trans.from_id:02}",
+                    id=trans.from_id,
+                    name=f"UNKNOWN_{trans.from_id:02}",
                     disabled=True,
                 )
                 .pullone()
             )
             dest = (
-                self.data.accounts.subset(id=base_trans.to_id)
+                self.data.accounts.subset(id=trans.to_id)
                 .fallback(
-                    id=base_trans.to_id,
-                    name=f"UNKNOWN_{base_trans.to_id:02}",
+                    id=trans.to_id,
+                    name=f"UNKNOWN_{trans.to_id:02}",
                     disabled=True,
                 )
                 .pullone()
             )
-            maybe_category, *rest = base_trans.note.split("\n")
+            maybe_category, *rest = trans.note.split("\n")
             if maybe_category.startswith(TCAT_PREFIX):
                 category_name = maybe_category[1:-1]
                 category = (
-                    self.data.categories.get(name=category_name)
+                    self.data.categories.subset(name=category_name)
                     .fallback(
                         id=-999,
                         name=category_name,
@@ -272,13 +273,14 @@ class MarxMapper:
                     )
                     .pullone()
                 )
+                rest = [""] + rest
             else:
-                category = self.data.categories.get(code=DEFAULT_TCAT_CODE)
+                category = self.data.categories.subset(code=DEFAULT_TCAT_CODE)
                 rest = [maybe_category] + rest
             concept = rest[0].strip() or "Sin concepto"
             details = "\n".join(rest[1:]).strip() or ""
             self.data.events.new(
-                id=-base_trans.id,
+                id=-trans.id,
                 date=date,
                 amount=amount,
                 category=category,
@@ -288,7 +290,9 @@ class MarxMapper:
                 details=details,
             )
 
-    def save(self, *, update_all: bool = False) -> Path:
+        return self.data
+
+    def save(self, *, update_all: bool = False, dbg: bool = False) -> Path:
         """Guarda los datos previamente cargados con las modificaciones
         realizadas.
 
@@ -306,18 +310,6 @@ class MarxMapper:
 
         with sqlite.connect(self.dest) as conn:
             cursor = conn.cursor()
-            # INSERT
-            to_insert = []
-            for factory in self.data.accounts, self.data.categories, self.data.events:
-                for item in factory.subset(id=-1):
-                    to_insert.append([item, *self.serialize(item.pullone())])
-            for item, table_name, _, params in to_insert:
-                cursor.execute(
-                    f"INSERT INTO {table_name} ({', '.join(params.keys())})"
-                    f" VALUES ({', '.join(['?' for _ in params])})",
-                    tuple(params.values()),
-                )
-                item.id = cursor.lastrowid
 
             # UPDATE
             to_update = []
@@ -328,7 +320,12 @@ class MarxMapper:
                         to_update.append([item, *self.serialize(item.pullone())])
                 else:
                     for item, changes in factory.meta_changed:
+                        print(">>>>>>", item, changes)
                         to_update.append([item, *self.serialize(item, changes)])
+            if dbg:
+                for _, _, _, params in to_update:
+                    print(f">>> {params}")
+                print(f">>> {len(to_update)} elementos a actualizar\n")
             for item, table_name, table_pkey, params in to_update:
                 cursor.execute(
                     f"UPDATE {table_name} SET {', '.join([f'{k} = ?' for k in params])}"
@@ -336,13 +333,36 @@ class MarxMapper:
                     (*params.values(), item.rid),
                 )
 
+            # INSERT
+            to_insert = []
+            for factory in self.data.accounts, self.data.categories, self.data.events:
+                for item in factory.subset(id=-1):
+                    to_insert.append([item, *self.serialize(item.pullone())])
+            if dbg:
+                for _, _, _, params in to_insert:
+                    print(f">>> {params}")
+                print(f">>> {len(to_insert)} elementos nuevos a insertar\n")
+            for item, table_name, _, params in to_insert:
+                cursor.execute(
+                    f"INSERT INTO {table_name} ({', '.join(params.keys())})"
+                    f" VALUES ({', '.join(['?' for _ in params])})",
+                    tuple(params.values()),
+                )
+                item.id = cursor.lastrowid
+
             # DELETE
             to_delete = []
             for factory in self.data.accounts, self.data.categories, self.data.events:
                 for item in factory.meta_deleted:
                     to_delete.append([item, *self.serialize(item.pullone())])
+            if dbg:
+                for _, _, _, params in to_delete:
+                    print(f">>> {params}")
+                print(f">>> {len(to_delete)} elementos a eliminar\n")
             for item, table_name, table_pkey, _ in to_delete:
                 cursor.execute(f"DELETE FROM {table_name} WHERE {table_pkey} = ?", (item.rid,))
+
+        return self.dest
 
     def serialize(
         self, item, params_changed: list[str] | None = None
@@ -366,19 +386,15 @@ class MarxMapper:
             if "color" in params_changed:
                 params["acc_color"] = item.color
             if insert:
-                params.update(
-                    {
-                        "acc_initial": 0.0,
-                        "acc_is_closed": 0,
-                        "acc_is_credit": 0,
-                        "acc_min_limit": 0.0,
-                    }
-                )
+                params["acc_initial"] = 0.0
+                params["acc_is_closed"] = 0
+                params["acc_is_credit"] = 0
+                params["acc_min_limit"] = 0.0
             return "tbl_account", "acc_id", params
 
         elif isinstance(item, Category):
             if item.type == Category.TRANSFER:
-                if any(x in params_changed for x in {"name", "code", "title"}):
+                if any(x in params_changed for x in ("name", "code", "title")):
                     params["note_text"] = f"[{item.name}]"
                 if insert:
                     params["note_payee_payer"] = -1
@@ -432,15 +448,11 @@ class MarxMapper:
                 if item.type == Event.RECURRING:
                     params = {f"r_{key}": value for key, value in params.items()}
                     if insert:
-                        params.update(
-                            {
-                                "r_exp_remind_val": -1,
-                                "r_exp_week_month": None,
-                                "r_exp_end_date": "20300101",
-                                "r_exp_freq": 1,
-                                "r_exp_cycle": 2,
-                            }
-                        )
+                        params["r_exp_remind_val"] = -1
+                        params["r_exp_week_month"] = None
+                        params["r_exp_end_date"] = "20300101"
+                        params["r_exp_freq"] = 1
+                        params["r_exp_cycle"] = 2
                     return "tbl_r_trans", "r_exp_id", params
                 else:
                     if "date" in params_changed:

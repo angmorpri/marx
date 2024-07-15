@@ -26,6 +26,10 @@ class Account:
         """ID real de la cuenta"""
         return self.id
 
+    @property
+    def repr_name(self) -> str:
+        return "@" + self.name
+
     def serialize(self) -> dict[str, Any]:
         """Serializa la cuenta"""
         return {
@@ -50,7 +54,7 @@ class Account:
         return self.name.__format__(format_spec)
 
     def __str__(self) -> str:
-        return f"Account({self.id}, {self.name})"
+        return f"Account({self.id}, {self.name!r})"
 
 
 @dataclass
@@ -58,6 +62,10 @@ class Counterpart:
     """Contraparte"""
 
     name: str
+
+    @property
+    def repr_name(self) -> str:
+        return self.name
 
     def serialize(self) -> dict[str, Any]:
         """Serializa la contraparte"""
@@ -92,6 +100,7 @@ class Category:
     color: str = "#FFFFFF"
     disabled: bool = False
 
+    # Tipos
     TRANSFER: ClassVar[int] = 0
     TRANSACTION: ClassVar[int] = 1
 
@@ -103,7 +112,7 @@ class Category:
     @property
     def type(self) -> int:
         """Tipo de la categoría"""
-        return self.TRANSACTION if self.id > 0 else self.TRANSFER
+        return self.TRANSFER if self.code.startswith("T") else self.TRANSACTION
 
     @property
     def code(self) -> str:
@@ -144,7 +153,7 @@ class Category:
         return self.code < other.code
 
     def __str__(self) -> str:
-        return f"Category({self.id}, {self.name})"
+        return f"Category({self.id}, {self.code!r}, {self.title!r})"
 
 
 @dataclass
@@ -162,12 +171,19 @@ class Event:
     status: int = 0  # 0: abierto, 1: cerrado
     rsource: complex = -1  # ID del evento recurrente, si no procede, -1
 
-    STANDARD: ClassVar[int] = 0
-    RECURRING: ClassVar[int] = 1
-
-    INCOME: ClassVar[int] = 1
+    # Tipos
     TRANSFER: ClassVar[int] = 0
+    TRANSACTION: ClassVar[int] = 1
+    RECURRING: ClassVar[int] = 2
+
+    # Flujos
+    INCOME: ClassVar[int] = 1
     EXPENSE: ClassVar[int] = -1
+    # TRANSFER: ClassVar[int] = 0   # Ya definido como "tipo"
+
+    # Estado
+    OPEN: ClassVar[int] = 0
+    CLOSED: ClassVar[int] = 1
 
     @property
     def rid(self) -> int:
@@ -177,7 +193,11 @@ class Event:
     @property
     def type(self) -> int:
         """Tipo del evento"""
-        return isinstance(self.id, complex)
+        if self.category.type == self.category.TRANSFER:
+            return self.TRANSFER
+        elif isinstance(self.id, complex):
+            return self.RECURRING
+        return self.TRANSACTION
 
     @property
     def flow(self) -> int:
@@ -198,6 +218,10 @@ class Event:
     def counterpart(self) -> Counterpart:
         """Contraparte del evento"""
         return self.orig if self.flow == self.INCOME else self.dest
+
+    def is_from_recurring(self) -> bool:
+        """Comprueba si el evento procede de un evento recurrente."""
+        return self.rsource != -1
 
     def serialize(self) -> dict[str, Any]:
         """Serializa el evento"""
@@ -237,9 +261,9 @@ class Event:
 
     def __str__(self) -> str:
         id = f"R{self.rid}" if self.type == self.RECURRING else self.id
-        sign = ["~", "+", "-"][self.flow]
-        amount = f"{sign}{self.amount:.2f}"
+        sign = ["=", "+", "-"][self.flow]
+        amount = f"{sign}{self.amount:8.2f}"
         category = self.category.code
-        orig = self.orig.name
-        dest = self.dest.name
-        return f"Event({id}, {self.date}, {amount}, {orig} -> {dest}, {category}, {self.concept})"
+        orig = self.orig.repr_name
+        dest = self.dest.repr_name
+        return f"Event({id}, {self.date:%Y-%m-%d}, {amount}, {orig!r} -> {dest!r}, {category!r}, {self.concept!r})"

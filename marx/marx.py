@@ -10,6 +10,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from marx.mappers import MarxMapper
+
 Report = dict[str, Any]
 
 
@@ -36,9 +38,13 @@ class Marx:
 
     """
 
+    def __init__(self) -> None:
+        self.dbg_mode = False
+
     def load(self, path: Path) -> None:
         """Carga la base de datos"""
-        raise NotImplementedError
+        self.mapper = MarxMapper(path)
+        self.data = self.mapper.load()
 
     def save(self) -> Path:
         """Guarda los cambios en una nueva base de datos
@@ -47,7 +53,7 @@ class Marx:
         la primera, y se devuelve su ruta.
 
         """
-        raise NotImplementedError
+        return self.mapper.save(dbg=self.dbg_mode)
 
     def distr(self, rules: Path, date: datetime) -> Report:
         """Ejecuta distribuciones monetarias automáticas, en función del

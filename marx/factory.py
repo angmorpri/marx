@@ -156,6 +156,7 @@ class Factory(Generic[FactoryItem]):
             if not kwargs and len(args) == 1 and isinstance(args[0], self._baseclass):
                 return self._parent.register(args[0])
             return self._parent.new(*args, **kwargs)
+        return self
 
     def select(self, *attrs: str) -> list[list[Any]]:
         """Devuelve una matriz con los valores de los atributos dados de los
@@ -166,9 +167,15 @@ class Factory(Generic[FactoryItem]):
         """
         return [[getattr(self._all[id], attr, None) for attr in attrs] for id in self._visible]
 
-    def __getattr__(self, attr: str) -> list[Any]:
-        """Sugarcoat para 'select', pero devuelve una lista simple"""
-        return [row[0] for row in self.select(attr)]
+    def __getattr__(self, attr: str) -> Any | list[Any]:
+        """Sugarcoat para 'select'
+
+        Devuelve una lista simple si hay varios objetos visibles, o
+        directamente el valor si sólo hay uno.
+
+        """
+        lst = [row[0] for row in self.select(attr)]
+        return lst[0] if len(lst) == 1 else lst
 
     def update(self, **kwargs: Any) -> None:
         """Actualiza los atributos de todos los objetos visibles según los
@@ -286,7 +293,7 @@ class Factory(Generic[FactoryItem]):
         id_zeros = len(str(len(self._handled)))
         for id in self._handled:
             status = {0: "DEL", 1: "ACT", 2: "MOD"}[self._status[id]]
-            print(f" ->  {id:0>{id_zeros}} | {status} | {self._all[id]!r}")
+            print(f" ->  {id:0>{id_zeros}} | {status} | {self._all[id]!s}")
         print("---")
 
     # Debugging
