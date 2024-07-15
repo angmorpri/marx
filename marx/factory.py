@@ -262,6 +262,14 @@ class Factory(Generic[FactoryItem]):
         ids = [id for id in self._visible if all(f(self._all[id]) for f in funcs)]
         return self._create_subset(ids)
 
+    def head(self, n: int = 5) -> Factory[FactoryItem]:
+        """Devuelve un subconjunto con los primeros 'n' objetos visibles"""
+        return self._create_subset(self._visible[:n])
+
+    def tail(self, n: int = 5) -> Factory[FactoryItem]:
+        """Devuelve un subconjunto con los últimos 'n' objetos visibles"""
+        return self._create_subset(self._visible[-n:])
+
     def empty(self) -> bool:
         """Devuelve True si no hay objetos visibles"""
         return not bool(self._visible)

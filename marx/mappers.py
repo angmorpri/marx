@@ -308,59 +308,63 @@ class MarxMapper:
         self.dest = safely_rename_file(self.source, "MOD$_")
         shutil.copy(self.source, self.dest)
 
-        with sqlite.connect(self.dest) as conn:
-            cursor = conn.cursor()
+        for factory in self.data.accounts, self.data.categories, self.data.events:
+            to_update = []
+            to_insert = []
+            to_delete = []
+            class_name = type(factory.pullone()).__name__
 
             # UPDATE
-            to_update = []
-            for factory in self.data.accounts, self.data.categories, self.data.events:
-                factory = factory.subset(lambda x: x.id != -1)  # No elementos nuevos
+            for item in factory.subset(lambda x: x.id != -1):  # No elementos nuevos
                 if update_all:
-                    for item in factory:
-                        to_update.append([item, *self.serialize(item.pullone())])
+                    to_update.append([item, *self.serialize(item.pullone())])
                 else:
-                    for item, changes in factory.meta_changed:
-                        print(">>>>>>", item, changes)
+                    for item, changes in item.meta_changed:
                         to_update.append([item, *self.serialize(item, changes)])
             if dbg:
-                for _, _, _, params in to_update:
-                    print(f">>> {params}")
-                print(f">>> {len(to_update)} elementos a actualizar\n")
-            for item, table_name, table_pkey, params in to_update:
-                cursor.execute(
-                    f"UPDATE {table_name} SET {', '.join([f'{k} = ?' for k in params])}"
-                    f" WHERE {table_pkey} = ?",
-                    (*params.values(), item.rid),
-                )
+                print(f">>> {class_name} UPDATE {len(to_update)}:")
+                for item, _, pkey, params in to_update:
+                    print(f">>> + ({pkey} = {item.rid}) {params}")
 
             # INSERT
-            to_insert = []
-            for factory in self.data.accounts, self.data.categories, self.data.events:
-                for item in factory.subset(id=-1):
-                    to_insert.append([item, *self.serialize(item.pullone())])
+            for item in factory.subset(id=-1):
+                to_insert.append([item, *self.serialize(item.pullone())])
             if dbg:
+                print(f">>> {class_name} INSERT {len(to_insert)}:")
                 for _, _, _, params in to_insert:
-                    print(f">>> {params}")
-                print(f">>> {len(to_insert)} elementos nuevos a insertar\n")
-            for item, table_name, _, params in to_insert:
-                cursor.execute(
-                    f"INSERT INTO {table_name} ({', '.join(params.keys())})"
-                    f" VALUES ({', '.join(['?' for _ in params])})",
-                    tuple(params.values()),
-                )
-                item.id = cursor.lastrowid
+                    print(f">>> + {params}")
 
             # DELETE
-            to_delete = []
-            for factory in self.data.accounts, self.data.categories, self.data.events:
-                for item in factory.meta_deleted:
-                    to_delete.append([item, *self.serialize(item.pullone())])
+            for item in factory.meta_deleted:
+                to_delete.append([item, *self.serialize(item)])
             if dbg:
-                for _, _, _, params in to_delete:
-                    print(f">>> {params}")
-                print(f">>> {len(to_delete)} elementos a eliminar\n")
-            for item, table_name, table_pkey, _ in to_delete:
-                cursor.execute(f"DELETE FROM {table_name} WHERE {table_pkey} = ?", (item.rid,))
+                print(f">>> {class_name} DELETE {len(to_delete)}:")
+                for item, _, pkey, _ in to_delete:
+                    print(f">>> + ({pkey} = {item.rid})")
+
+            # Actuar sobre la base de datos
+            with sqlite.connect(self.dest) as conn:
+                cursor = conn.cursor()
+                # UPDATE
+                for item, table_name, table_pkey, params in to_update:
+                    if not params:
+                        continue
+                    cursor.execute(
+                        f"UPDATE {table_name} SET {', '.join([f'{k} = ?' for k in params])}"
+                        f" WHERE {table_pkey} = ?",
+                        (*params.values(), item.rid),
+                    )
+                # INSERT
+                for item, table_name, _, params in to_insert:
+                    cursor.execute(
+                        f"INSERT INTO {table_name} ({', '.join(params.keys())})"
+                        f" VALUES ({', '.join(['?' for _ in params])})",
+                        tuple(params.values()),
+                    )
+                    item.id = cursor.lastrowid
+                # DELETE
+                for item, table_name, table_pkey, _ in to_delete:
+                    cursor.execute(f"DELETE FROM {table_name} WHERE {table_pkey} = ?", (item.rid,))
 
         return self.dest
 
@@ -407,7 +411,7 @@ class MarxMapper:
                 if "color" in params_changed:
                     params["category_color"] = item.color
                 if insert:
-                    params["category_is_inc"] = item.type == Category.INCOME
+                    params["category_is_inc"] = item.is_income()
                 return "tbl_cat", "category_id", params
 
         elif isinstance(item, Event):

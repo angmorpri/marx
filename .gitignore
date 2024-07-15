@@ -6,6 +6,7 @@ res/
 output/
 out/
 local/
+tests/MOD*_ExpensoDB
 
 # Archivos de pruebas
 testing.py

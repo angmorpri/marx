@@ -1,6 +1,6 @@
 # Python 3.10.11
 # Creado: 08/07/2024
-"""Test de la clase Factory"""
+"""Test de los mapeadores"""
 import os
 import sys
 

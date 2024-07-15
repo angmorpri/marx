@@ -13,7 +13,7 @@ from typing import Any, ClassVar
 
 @dataclass
 class Account:
-    """Cuenta bancaria"""
+    """Cuenta contable"""
 
     id: int
     name: str
@@ -134,6 +134,10 @@ class Category:
         """Cambia el título de la categoría."""
         self.name = f"{self.code}. {value}"
 
+    def is_income(self) -> bool:
+        """Comprueba si la categoría es de ingreso."""
+        return self.code.startswith("A")
+
     def serialize(self) -> dict[str, Any]:
         """Serializa la categoría"""
         return {
@@ -168,7 +172,7 @@ class Event:
     dest: Account | Counterpart
     concept: str = ""
     details: str = ""
-    status: int = 0  # 0: abierto, 1: cerrado
+    status: int = 1  # 0: abierto, 1: cerrado
     rsource: complex = -1  # ID del evento recurrente, si no procede, -1
 
     # Tipos
@@ -184,6 +188,12 @@ class Event:
     # Estado
     OPEN: ClassVar[int] = 0
     CLOSED: ClassVar[int] = 1
+
+    def __post_init__(self):
+        if isinstance(self.orig, str):
+            self.orig = Counterpart(self.orig)
+        if isinstance(self.dest, str):
+            self.dest = Counterpart(self.dest)
 
     @property
     def rid(self) -> int:
