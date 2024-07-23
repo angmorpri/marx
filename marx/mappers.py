@@ -105,7 +105,7 @@ class BaseMapper:
                 prefix = info["prefixes"][0]
                 source = getattr(self.data, info["target"])
                 # UPDATE (sólo cambios)
-                for item, changes in source.subset(lambda x: x.id != -1).meta_changed:
+                for item, changes in source.subset(lambda x: x.id != -1).meta_changes():
                     fixed_changes = {}
                     for attr in changes:
                         prefixed = f"{prefix}{attr}".replace("note_id", "notey_id")
@@ -127,7 +127,7 @@ class BaseMapper:
                     )
                     item.id = cursor.lastrowid
                 # DELETE
-                for item in source.meta_deleted:
+                for item in source.meta_deleted():
                     pkey = f"{prefix}id".replace("note_id", "notey_id")
                     cursor.execute(f"DELETE FROM {table} WHERE {pkey} = ?", (item.id,))
 
@@ -272,7 +272,7 @@ class MarxMapper:
                     )
                     .pullone()
                 )
-                rest = [""] + rest
+                rest = rest or [""]
             else:
                 category = self.data.categories.subset(code=DEFAULT_TCAT_CODE)
                 rest = [maybe_category] + rest
@@ -318,7 +318,7 @@ class MarxMapper:
                 if update_all:
                     to_update.append([item, *self.serialize(item.pullone())])
                 else:
-                    for item, changes in item.meta_changed:
+                    for item, changes in item.meta_changes():
                         to_update.append([item, *self.serialize(item, changes)])
             if dbg:
                 print(f">>> {class_name} UPDATE {len(to_update)}:")
@@ -334,7 +334,7 @@ class MarxMapper:
                     print(f">>> + {params}")
 
             # DELETE
-            for item in factory.meta_deleted:
+            for item in factory.meta_deleted():
                 to_delete.append([item, *self.serialize(item)])
             if dbg:
                 print(f">>> {class_name} DELETE {len(to_delete)}:")

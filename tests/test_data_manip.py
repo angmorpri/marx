@@ -44,11 +44,13 @@ def test_models():
 
     # Eventos
     print("EVENTOS ACTIVOS")
-    data.events.subset(status=1).head().show()
+    data.events.subset(status=1).head(30).show()
     print("EVENTOS PROGRAMADOS")
-    data.events.subset(status=0).head().show()
+    data.events.subset(status=0).head(30).show()
     print("EVENTOS RECURRENTES")
     data.events.subset(type=Event.RECURRING).show()
+    print("EVENTOS CERRADOS ORDENADOS")
+    data.events.subset(status=1).sort("date", reverse=True).head(30).show()
 
 
 def test_manip():
