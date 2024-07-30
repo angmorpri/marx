@@ -12,7 +12,7 @@ from pathlib import Path
 
 from marx import Marx
 
-TESTING_FILE = Path(__file__).parent / "Jul_04_2024_ExpensoDB"
+TESTING_FILE = Path(__file__).parent / "data" / "Jul_04_2024_ExpensoDB"
 
 
 def test_load_show():

@@ -68,12 +68,32 @@ class Marx:
 
         """
         d = Distribution(self.data, criteria, date)
-        print(d)
         events = d.run()
-        for event in events:
-            print(event)
+        return {
+            "criteria": str(d.criteria),
+            "date": d.date.strftime("%Y-%m-%d"),
+            "source": {
+                "target": d.source.target.serialize(),
+                "amount": d.source.amount,
+                "ratio": d.source.ratio,
+            },
+            "sinks": [
+                {
+                    "name": sink.name,
+                    "target": sink.target.serialize(),
+                    "default": sink.default,
+                    "amount": sink.amount,
+                    "ratio": sink.ratio,
+                    "category": sink.category.serialize(),
+                    "concept": sink.concept,
+                    "details": sink.details,
+                }
+                for sink in d.sinks
+            ],
+            "events": [event.serialize() for event in events],
+        }
 
-    def paycheck_parse(self, paycheck: Path, date: datetime) -> Report:
+    def paycheck_parse(self, paycheck: Path, criteria: Path, date: datetime) -> Report:
         """Analiza y extrae información de una nómina con formato predefinido.
 
         Los eventos generados se registrarán en la base de datos con la fecha

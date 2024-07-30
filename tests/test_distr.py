@@ -4,12 +4,15 @@
 import os
 import sys
 
+from numpy import sort
+
 MARX_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__) + "/marx"))
 sys.path.append(os.path.dirname(MARX_DIR))
 
 
 from datetime import datetime
 from pathlib import Path
+from pprint import pprint
 
 from marx import Marx
 
@@ -25,8 +28,11 @@ if __name__ == "__main__":
     m = Marx()
     m.load(TESTING_FILE)
 
-    m.distr(AUTOQ_PATH, DEFAULT_DATE)
-    input()
-    m.distr(AUTOI_PATH, DEFAULT_DATE)
+    report = m.distr(AUTOQ_PATH, DEFAULT_DATE)
+    pprint(report, sort_dicts=False)
+    print()
+
+    report = m.distr(AUTOI_PATH, DEFAULT_DATE)
+    pprint(report, sort_dicts=False)
 
     m.save()

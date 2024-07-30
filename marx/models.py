@@ -283,7 +283,7 @@ class Event:
         """Serializa el evento"""
         return {
             "id": self.id,
-            "date": self.date,
+            "date": self.date.strftime("%Y-%m-%d"),
             "amount": self.amount,
             "category": self.category.serialize(),
             "orig": self.orig.serialize(),
