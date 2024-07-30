@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from marx.automation import Distribution
 from marx.mappers import MarxMapper
 
 Report = dict[str, Any]
@@ -55,7 +56,7 @@ class Marx:
         """
         return self.mapper.save(dbg=self.dbg_mode)
 
-    def distr(self, rules: Path, date: datetime) -> Report:
+    def distr(self, criteria: Path, date: datetime) -> Report:
         """Ejecuta distribuciones monetarias automáticas, en función del
         juego de reglas proporcionado.
 
@@ -66,7 +67,11 @@ class Marx:
         obtenidos y las acciones realizadas.
 
         """
-        raise NotImplementedError
+        d = Distribution(self.data, criteria, date)
+        print(d)
+        events = d.run()
+        for event in events:
+            print(event)
 
     def paycheck_parse(self, paycheck: Path, date: datetime) -> Report:
         """Analiza y extrae información de una nómina con formato predefinido.

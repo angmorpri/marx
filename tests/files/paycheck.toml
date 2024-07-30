@@ -1,0 +1,56 @@
+[atam]
+match = "A.T.A.M."
+order = 400
+category = "B82"
+dest = "Telefónica"
+concept = "ATAM"
+
+[pp]
+match = "PLAN PENSIONES"
+order = 500
+category = "T25"
+dest = "@Inversión"
+concept = "Plan de pensiones de Telefónica"
+
+[irpf]
+match = "I.R.P.F."
+order = 200
+category = "B11"
+dest = "Hacienda"
+concept = "IRPF"
+details = "%pct%"
+
+[acciones]
+match = "PLAN DE ACCIONES"
+order = 600
+category = "T27"
+dest = "@Inversión"
+concept = "Plan de acciones de Telefónica"
+
+[ss]
+match = "SEGURIDAD SOCIAL"
+order = 300
+category = "B11"
+dest = "Seguridad Social"
+concept = "Seguridad Social"
+
+[plus]
+match = "PLUS"
+order = 175
+category = "A12"
+orig = "Telefónica"
+concept = "Plus del convenio"
+
+[extra]
+match = ["(PAGA)", "(BENEF.)"]
+order = 150
+category = "A12"
+orig = "Telefónica"
+concept = "Paga extra de %occasion%"
+
+[_]
+match = ".*"
+order = 100
+category = "A11"
+orig = "Telefónica"
+concept = "Nómina bruta"

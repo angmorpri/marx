@@ -7,7 +7,7 @@ res/
 output/
 out/
 local/
-tests/MOD*_ExpensoDB
+tests/data/MOD*_ExpensoDB
 scripts/*_ExpensoDB
 
 # Archivos de pruebas
