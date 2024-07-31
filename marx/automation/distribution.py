@@ -13,14 +13,11 @@ respectivamente, la fuente de dinero y los destinos del mismo.
 
 from dataclasses import dataclass
 from datetime import datetime
-from math import remainder
 from pathlib import Path
-import re
 
 import toml
 
-from marx.models import Account, Counterpart, Category, Event
-from marx.mappers import MarxDataStruct
+from marx.models import Account, Counterpart, Category, Event, MarxDataStruct
 
 
 @dataclass

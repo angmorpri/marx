@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from marx.automation import Distribution
+from marx.automation import Distribution, PaycheckParser
 from marx.mappers import MarxMapper
 
 Report = dict[str, Any]
@@ -103,7 +103,11 @@ class Marx:
         obtenidos y las acciones realizadas.
 
         """
-        raise NotImplementedError
+        parser = PaycheckParser(self.data, criteria)
+        events = parser.parse(paycheck, date)
+        return {
+            "events": [event.serialize() for event in events],
+        }
 
     def loans_list(self, date_from: datetime, date_to: datetime) -> Report:
         """Identifica y devuelve los préstamos en el intervalo de fechas

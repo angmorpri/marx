@@ -1,6 +1,6 @@
 # Python 3.10.11
 # Creado: 30/07/2024
-"""Test de la clase Factory"""
+"""Test de la clase Distribution"""
 import os
 import sys
 

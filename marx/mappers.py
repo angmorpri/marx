@@ -6,10 +6,6 @@ Hay dos mapeadores: el crudo (BaseMapper) y el de Marx (MarxMapper). El crudo
 maneja la base de datos AS-IS, sin transformaciones; el de Marx, que se genera
 a través de este, transforma los datos.
 
-Se presentan también dos estructuras de datos: para la base (BaseDataStruct) y
-para Marx (MarxDataStruct). Estas agrupan las colecciones de datos de cada
-modelo, haciendo más sencillo su manejo.
-
 """
 
 import shutil
@@ -21,13 +17,12 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
-from marx.models import Account, Counterpart, Category, Event
+from marx.models import Account, Counterpart, Category, Event, MarxDataStruct
 from marx.util import Factory, safely_rename_file
 
 BaseDataStruct = namedtuple(
     "BaseDataStruct", ["accounts", "categories", "notes", "recurring", "transactions", "transfers"]
 )
-MarxDataStruct = namedtuple("MarxDataStruct", ["accounts", "categories", "events"])
 
 
 DB_TABLES_INFO = {

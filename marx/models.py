@@ -4,10 +4,14 @@
 
 from __future__ import annotations
 
+import re
+from collections import namedtuple
 from dataclasses import dataclass
 from datetime import datetime
-import re
 from typing import Any, ClassVar
+
+
+MarxDataStruct = namedtuple("MarxDataStruct", ["accounts", "categories", "events"])
 
 
 @dataclass

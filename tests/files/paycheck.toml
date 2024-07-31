@@ -18,7 +18,7 @@ order = 200
 category = "B11"
 dest = "Hacienda"
 concept = "IRPF"
-details = "%pct%"
+details = "(%pct%)"
 
 [acciones]
 match = "PLAN DE ACCIONES"
@@ -48,8 +48,7 @@ category = "A12"
 orig = "Telefónica"
 concept = "Paga extra de %occasion%"
 
-[_]
-match = ".*"
+[_default_]
 order = 100
 category = "A11"
 orig = "Telefónica"
