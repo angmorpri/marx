@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from marx.automation import Distribution, PaycheckParser
+from marx.automation import Distribution, LoansHandler, PaycheckParser
 from marx.mappers import MarxMapper
 
 Report = dict[str, Any]
@@ -109,7 +109,7 @@ class Marx:
             "events": [event.serialize() for event in events],
         }
 
-    def loans_list(self, date_from: datetime, date_to: datetime) -> Report:
+    def loans_list(self, date_to: datetime) -> Report:
         """Identifica y devuelve los préstamos en el intervalo de fechas
         proporcionado.
 
@@ -117,16 +117,25 @@ class Marx:
         obtenidos y las acciones realizadas.
 
         """
-        raise NotImplementedError
+        handler = LoansHandler(self.data)
+        loans = handler.find(date_to)
+        return {
+            loan.tag: {
+                "position": loan.position,
+                "status": loan.status,
+                "start_date": loan.start_date.strftime("%Y-%m-%d"),
+                "end_date": loan.end_date.strftime("%Y-%m-%d") if loan.end_date else "",
+                "stop_date": date_to.strftime("%Y-%m-%d"),
+                "amount": loan.amount,
+                "paid": loan.paid,
+                "remaining": loan.remaining,
+                "events": [event.serialize() for event in loan.events],
+            }
+            for loan in loans
+        }
 
-    def loans_default(self, loan_id: int, date: datetime) -> Report:
-        """Genera una situación de impago en un préstamo.
-
-        Los eventos generados se registrarán en la base de datos con la fecha
-        indicada.
-
-        Devuelve un reporte en forma de diccionario con los resultados
-        obtenidos y las acciones realizadas.
-
-        """
-        raise NotImplementedError
+    def loans_default(self, loan_tag: str) -> Report:
+        """Genera una situación de impago en un préstamo."""
+        handler = LoansHandler(self.data)
+        handler.default(loan_tag)
+        return {}
