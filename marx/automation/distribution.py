@@ -113,7 +113,7 @@ class Distribution:
             expenses = sum(
                 self.data.events.subset(lambda x: x.date <= self.date, orig=target).amount
             )
-            total = incomes - expenses
+            total = round(incomes - expenses, 2)
             if "amount" in source:
                 amount = source["amount"]
                 if amount > total:
@@ -151,7 +151,6 @@ class Distribution:
         self.sinks = []
         for name, raw_sink in raw_sinks:
             raw_sink = {**defaults, **raw_sink}
-            default = False
             if "target" not in raw_sink:
                 raise ValueError(f"[DistrSink {name!r}] No se ha especificado un objetivo")
             target = raw_sink["target"]
@@ -167,11 +166,7 @@ class Distribution:
                     )
             if "amount" in raw_sink:
                 amount = raw_sink["amount"]
-                if amount == -1:
-                    amount = -1
-                    ratio = -1
-                    default = True
-                elif amount > self.source.amount:
+                if amount > self.source.amount:
                     raise ValueError(
                         f"[DistrSink {name!r}] La cantidad a distribuir supera la cantidad disponible en la fuente"
                     )
@@ -179,16 +174,12 @@ class Distribution:
                     ratio = 0
             elif "ratio" in raw_sink:
                 ratio = raw_sink["ratio"]
-                if ratio == -1:
-                    amount = -1
-                    ratio = -1
-                    default = True
-                else:
-                    amount = 0
+                amount = 0
             else:
                 raise ValueError(
                     f"[DistrSink {name!r}] No se ha especificado ni cantidad ni ratio a distribuir"
                 )
+            default = bool(raw_sink.get("default", False))
             if "category" not in raw_sink:
                 raise ValueError(f"[DistrSink {name!r}] No se ha especificado una categoría")
             category = self.data.categories.subset(code=raw_sink["category"]).pullone()
@@ -225,24 +216,24 @@ class Distribution:
         """Ejecuta la distribución monetaria
 
         En primer lugar, reparte las cantidades fijas, y luego, sobre el resto,
-        reparte según los ratios. Los eventos generados se registran en la
-        estructura de datos.
+        reparte según los ratios. Si el resultado tras repartir no es 0, se
+        añade o resta al destino marcado por defecto, si lo hay. Finalmente,
+        se generan los eventos contables correspondientes.
 
         """
         remaining = self.source.amount
         events = []
+        default_event = None
         for sink in sorted(self.sinks, key=lambda x: x.amount, reverse=True):
-            if sink.default:
-                amount = remaining
-            elif sink.amount > 0:
-                amount = sink.amount
+            if sink.amount > 0:
+                amount = round(sink.amount, 2)
             else:
-                amount = self.source.amount * sink.ratio
+                amount = round(self.source.amount * sink.ratio, 2)
             remaining -= amount
             event = self.data.events.new(
                 -1,
                 date=self.date,
-                amount=round(amount, 2),
+                amount=amount,
                 category=sink.category,
                 orig=self.source.target,
                 dest=sink.target,
@@ -250,6 +241,11 @@ class Distribution:
                 details=sink.details,
             ).pullone()
             events.append(event)
+            if sink.default:
+                default_event = event
+        # Ajuste en función de la cantidad restante
+        if default_event and remaining != 0:
+            default_event.amount = round(default_event.amount + remaining, 2)
         return events
 
     def __str__(self) -> str:

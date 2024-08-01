@@ -18,7 +18,7 @@ from pathlib import Path
 import toml
 from PyPDF2 import PdfReader, PageObject
 
-from marx.models import Account, Counterpart, Category, Event, MarxDataStruct
+from marx.models import Event, MarxDataStruct
 
 
 FILENAME_PATTERN = r"\d{2}-\d{4}(-[A-Za-z])?\.pdf"
