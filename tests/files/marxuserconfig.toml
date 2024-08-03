@@ -1,0 +1,26 @@
+# Marx User Configuration File
+# '*_dir' and '*_path' fields must be absolute paths
+# '*_save_prefix' fields must be any alphanumeric string without spaces,
+# preferably ended with '_'
+# 'on_cli_startup' field must be a valid command to run on MarxCLI, or a list
+# of commands separated by commas
+
+[db]
+databases_dir = "G:/Mi unidad/MiBilletera Backups"
+default_save_prefix = ""
+
+[autoquotas]
+autoquotas_criteria_path = ""
+autoquotas_save_prefix = ""
+
+[autoinvest]
+autoinvest_criteria_path = ""
+autoinvest_save_prefix = ""
+
+[paycheckparse]
+paychecks_dir = ""
+paycheckparser_criteria_path = ""
+paycheckparse_save_prefix = ""
+
+[cli]
+on_cli_startup = ""

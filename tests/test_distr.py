@@ -4,8 +4,6 @@
 import os
 import sys
 
-from numpy import sort
-
 MARX_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__) + "/marx"))
 sys.path.append(os.path.dirname(MARX_DIR))
 
