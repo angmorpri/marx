@@ -18,6 +18,7 @@ from pathlib import Path
 import toml
 
 from marx.models import Account, Counterpart, Category, Event, MarxDataStruct
+from marx.util.factory import Factory
 
 
 @dataclass
@@ -212,7 +213,7 @@ class Distribution:
             if self.source.amount - sum(sink.amount for sink in self.sinks) <= 0:
                 raise ValueError("[Distr] Existen destinos con ratio que no recibirán nada")
 
-    def run(self) -> list[Event]:
+    def run(self) -> Factory[Event]:
         """Ejecuta la distribución monetaria
 
         En primer lugar, reparte las cantidades fijas, y luego, sobre el resto,
@@ -222,7 +223,7 @@ class Distribution:
 
         """
         remaining = self.source.amount
-        events = []
+        events = self.data.events.subset()
         default_event = None
         for sink in sorted(self.sinks, key=lambda x: x.amount, reverse=True):
             if sink.amount > 0:
@@ -239,8 +240,8 @@ class Distribution:
                 dest=sink.target,
                 concept=sink.concept,
                 details=sink.details,
-            ).pullone()
-            events.append(event)
+            )
+            events.join(event)
             if sink.default:
                 default_event = event
         # Ajuste en función de la cantidad restante

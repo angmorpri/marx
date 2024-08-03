@@ -21,6 +21,7 @@ FactoryItem = TypeVar("FactoryItem")
 class ItemMetadata:
     """Metadatos de un objeto industrializado"""
 
+    iid: int  # ID interno
     item: FactoryItem
     status: int = 1  # 0: eliminado, 1: activo, 2: modificado
     changes: set[str] = field(default_factory=set)
@@ -51,7 +52,7 @@ class Factory(Generic[FactoryItem]):
     def _append(self, item: FactoryItem) -> int:
         Factory.GLOBAL_INDEX += 1
         id = Factory.GLOBAL_INDEX
-        self._items[id] = ItemMetadata(item)
+        self._items[id] = ItemMetadata(id, item)
         self._handled.append(id)
         return id
 
@@ -230,12 +231,16 @@ class Factory(Generic[FactoryItem]):
         'kwargs' se puede usar para filtrar por atributos específicos, donde la
         clave es el nombre del atributo y el valor es el valor que debe tener.
 
-        Sólo filtra objetos activos.
+        Sólo filtra objetos activos. Si no se indica ningún filtro, se devuelve
+        una lista vacía.
 
         """
         # kwargs -> funcs
         for attr, value in kwargs.items():
             funcs += (lambda item, a=attr, v=value: getattr(item, a) == v,)
+        # no hay filtros
+        if not funcs:
+            return self._create_subset([])
         # filtrar
         ids = [id for id in self._active if all(f(self._items[id].item) for f in funcs)]
         return self._create_subset(ids)
@@ -274,6 +279,21 @@ class Factory(Generic[FactoryItem]):
                 if self._items[id].status == 2:
                     self._items[id].status = 1
                     self._items[id].changes.clear()
+
+    # Operaciones entre listas
+
+    def join(self, other: Factory[FactoryItem]) -> Factory[FactoryItem]:
+        """Une dos listas de objetos industrializados, manteniendo la base de
+        la primera
+
+        Los objetos de la segunda lista se añaden a la primera, y se devuelve
+        la primera lista.
+
+        """
+        for id in other._handled:
+            self._items[id] = other._items[id]
+            self._handled.append(id)
+        return self
 
     # Debugging
 

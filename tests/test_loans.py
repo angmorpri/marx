@@ -4,7 +4,6 @@
 import os
 import sys
 
-from numpy import sort
 
 MARX_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__) + "/marx"))
 sys.path.append(os.path.dirname(MARX_DIR))
@@ -17,21 +16,23 @@ from pprint import pprint
 from marx import Marx
 
 TESTING_FILE = Path(__file__).parent / "data" / "Jul_04_2024_ExpensoDB"
-CURRENT_DB = Path("G:/Mi unidad/MiBilletera Backups/Ago_01_2024_ExpensoDB")
+# TESTING_FILE = Path("G:/Mi unidad/MiBilletera Backups/Ago_01_2024_ExpensoDB")
 
 DEFAULT_DATE = datetime(2024, 8, 30)
 
 
 if __name__ == "__main__":
     m = Marx()
-    m.load(CURRENT_DB)
+    m.load(TESTING_FILE)
 
     res = m.loans_list(DEFAULT_DATE)
     pprint(res, sort_dicts=False)
     input()
 
-    m.loans_default("THORLT")
-    print("DONE")
+    res = m.loans_default("THORLT")
+    pprint(res, sort_dicts=False)
     input()
 
     pprint(m.loans_list(DEFAULT_DATE), sort_dicts=False)
+
+    m.save()

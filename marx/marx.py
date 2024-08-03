@@ -70,7 +70,6 @@ class Marx:
         d = Distribution(self.data, criteria, date)
         events = d.run()
         return {
-            "criteria": str(d.criteria),
             "date": d.date.strftime("%Y-%m-%d"),
             "source": {
                 "target": d.source.target.serialize(),
@@ -137,5 +136,7 @@ class Marx:
     def loans_default(self, loan_tag: str) -> Report:
         """Genera una situación de impago en un préstamo."""
         handler = LoansHandler(self.data)
-        handler.default(loan_tag)
-        return {}
+        events = handler.default(loan_tag)
+        return {
+            "events": [event.serialize() for event in events],
+        }

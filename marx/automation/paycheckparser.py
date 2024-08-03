@@ -1,11 +1,10 @@
 # Python 3.10.11
 # Creado: 31/07/2024
-"""Herramienta para extracción automatizada de la información de una nómina
-con formato predefinido
+"""Herramienta para extracción automatizada de los datos de una nómina
 
-Presenta la clase 'PaycheckParser', que a partir de un archivo TOML de reglas
-que indiquen qué componentes convertir en eventos (conocido como "criterios"),
-puede generar dichos eventos a partir de una nómina.
+Presenta la clase 'PaycheckParser', que permite interpretar y extraer los datos
+relevantes de una nómina, y transformarlos en eventos de acuerdo a una serie
+de reglas definidas en archivos TOML llamados "criterios".
 
 """
 
@@ -19,6 +18,7 @@ import toml
 from PyPDF2 import PdfReader, PageObject
 
 from marx.models import Event, MarxDataStruct
+from marx.util.factory import Factory
 
 
 FILENAME_PATTERN = r"\d{2}-\d{4}(-[A-Za-z])?\.pdf"
@@ -82,7 +82,7 @@ class PaycheckParser:
                     f"[PaycheckParser] El criterio {key!r} no puede tener parámetros 'orig' y 'dest'"
                 )
 
-    def parse(self, paycheck: Path, date: datetime) -> list[Event]:
+    def parse(self, paycheck: Path, date: datetime) -> Factory[Event]:
         """Extrae la información de una nómina
 
         Se extrae la información de una nómina con formato PDF, generando
@@ -136,7 +136,7 @@ class PaycheckParser:
 
         # Generación de eventos
         paycheck_account = self.data.accounts.subset(name="Ingresos").pullone()
-        events = []
+        events = self.data.events.subset()
         for key, value in totals.items():
             if value == 0.0:
                 continue
@@ -191,8 +191,8 @@ class PaycheckParser:
                 dest=dest,
                 concept=params.get("concept", ""),
                 details=params.get("details", ""),
-            ).pullone()
-            events.append(event)
+            )
+            events.join(event)
 
         return events
 

@@ -29,18 +29,18 @@ if __name__ == "__main__":
     m = Marx()
     m.load(TESTING_FILE)
 
-    if 1:
+    if 0:
         report = m.paycheck_parse(PAYCHECKS_DIR / "06-2024.pdf", CRITERIA_PATH, DEFAULT_DATE)
         pprint(report, sort_dicts=False)
 
-    if 0:
+    if 1:
         paycheck = random.choice(list(PAYCHECKS_DIR.glob("*.pdf")))
         for year in ("2021", "2022", "2023", ""):
             subdir = PAYCHECKS_DIR / year
             for paycheck in subdir.glob("*.pdf"):
                 if "SEPI" in paycheck.stem:
                     continue
-                input(f"Procesando {paycheck}...")
+                print(f"Procesando {paycheck}...")
                 report = m.paycheck_parse(paycheck, CRITERIA_PATH, DEFAULT_DATE)
                 pprint(report, sort_dicts=False)
                 print()

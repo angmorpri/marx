@@ -431,14 +431,14 @@ class MarxMapper:
                     params["exp_cat"] = item.category.rid
                 if "orig" in params_changed:
                     if item.flow == Event.INCOME:
-                        params["exp_payee_name"] = str(item.counterpart)
+                        params["exp_payee_name"] = item.counterpart.name
                     else:
                         params["exp_acc_id"] = item.account.rid
                 if "dest" in params_changed:
                     if item.flow == Event.INCOME:
                         params["exp_acc_id"] = item.account.rid
                     else:
-                        params["exp_payee_name"] = str(item.counterpart)
+                        params["exp_payee_name"] = item.counterpart.name
                 if "date" in params_changed:
                     params["exp_date"] = item.date.strftime("%Y%m%d")
                 if any(x in params_changed for x in ("concept", "details")):
