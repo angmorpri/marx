@@ -206,8 +206,10 @@ class Distribution:
         if sum(sink.default for sink in self.sinks) > 1:
             raise ValueError("[Distr] No puede haber más de un destino por defecto")
         if sum(sink.amount for sink in self.sinks) > self.source.amount:
+            total = sum(sink.amount for sink in self.sinks)
             raise ValueError(
-                "[Distr] El total de cantidades a distribuir supera la cantidad indicada para distribuir"
+                f"[Distr] El total de cantidades recibidas por los sumideros ({total:.2f})"
+                f" supera la cantidad indicada para distribuir ({self.source.amount:.2f})"
             )
         if any(sink.ratio > 0 for sink in self.sinks):
             if self.source.amount - sum(sink.amount for sink in self.sinks) <= 0:

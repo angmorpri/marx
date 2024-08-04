@@ -38,6 +38,7 @@ class Account:
         return {
             "id": self.id,
             "name": self.name,
+            "repr_name": self.repr_name,
             "order": self.order,
             "color": self.color,
             "disabled": self.disabled,
@@ -79,7 +80,7 @@ class Counterpart:
 
     def serialize(self) -> dict[str, Any]:
         """Serializa la contraparte"""
-        return {"name": self.name}
+        return {"name": self.name, "repr_name": self.repr_name}
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, Counterpart):
@@ -168,8 +169,11 @@ class Category:
         return {
             "id": self.id,
             "name": self.name,
+            "code": self.code,
+            "title": self.title,
             "icon": self.icon,
             "color": self.color,
+            "type": self.type,
             "disabled": self.disabled,
         }
 

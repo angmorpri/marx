@@ -10,6 +10,7 @@ resultado; si no, se abrirá un intérprete interactivo.
 """
 
 import argparse
+from asyncio import events
 import os
 import re
 import sys
@@ -21,6 +22,7 @@ from typing import Any
 import toml
 
 from marx import Marx
+from marx.util import safely_rename_file
 
 
 MIBILLETERA_MONTHS = (
@@ -38,6 +40,8 @@ MIBILLETERA_MONTHS = (
     "Dic",
 )
 MIBILLETERA_FILENAME_PATTERN = r"(?P<month>[A-Za-z]+)_(?P<day>\d+)_(?P<year>\d+)_ExpensoDB(?:\.db)?"
+
+PAYCHECK_FILENAME_PATTERN = r"^\d{2}-\d{4}(-X)?\.pdf$"
 
 
 class UserConfig:
@@ -59,33 +63,38 @@ class UserConfig:
             raise FileNotFoundError(f"[UserConfig] Archivo no encontrado: {path}")
         self.config = toml.load(path)
 
-    def get(self, key: str) -> Any:
+    def get(self, key: str, *, safe: bool = True) -> Any:
         """Devuelve el valor de la clave 'key', en cualquier sección del
         archivo de configuración
 
-        Si no la encuentra, lanzará un KeyError.
+        Por defecto, si no encuentra la clave, o está vacía, lanzará una
+        excepción. Esto se puede evitar pasando 'safe' a False, lo que
+        provocará que devuelva None en estos casos.
 
         Las claves terminadas en '_dir' o '_path' serán convertidas a objetos
         'Path' automáticamente.
 
         """
+        res = None
         for field, value in self.config.items():
             if isinstance(value, dict):
                 if key in value:
-                    return self._convert(key, value[key])
+                    res = value[key]
+                    break
             elif field == key:
-                return self._convert(key, value)
-        raise KeyError(
-            f"[UserConfig] La clave {key!r} no se ha encontrado en el archivo de configuración de usuario"
-        )
-
-    def _convert(self, key: str, value: Any) -> Any:
-        """Convierte automáticamente 'value' si es posible"""
-        if not value:
-            raise ValueError(f"[UserConfig] La clave '{key}' existe, pero no tiene valor")
+                res = value
+                break
+        # no se encuentra o está vacía
+        if not res:
+            if safe:
+                raise KeyError(
+                    f"[UserConfig] La clave requerida {key!r} no se encuentra o está vacía"
+                )
+            return None
+        # cast
         if key.endswith("_dir") or key.endswith("_path"):
-            return Path(value)
-        return value
+            return Path(res)
+        return res
 
 
 class MarxCLI:
@@ -129,6 +138,28 @@ class MarxCLI:
                 choice = file
         return self.validate_path(choice)
 
+    def most_recent_paycheck(self, path: Path) -> Path:
+        """Devuelve la nómina más reciente en 'path'
+
+        El nombre del archivo de la nómina debe tener format 'MM-YYYY[-X].pdf',
+        de lo contario, será ignorado. 'MM' será el mes, 'YYYY' el año, y 'X',
+        un caracter especial para indicar nóminas extra. La fecha formada por
+        estos tres elementos será el criterio de ordenación.
+
+        """
+        choice = None
+        top_cmp = (0, 0, 0)
+        for file in (p for p in path.iterdir() if p.is_file()):
+            match = re.fullmatch(PAYCHECK_FILENAME_PATTERN, file.name)
+            if not match:
+                continue
+            month, year, *extra = file.stem.split("-")
+            cmp = (int(month), int(year), 1 if extra else 0)
+            if cmp > top_cmp:
+                top_cmp = cmp
+                choice = file
+        return self.validate_path(choice)
+
     def dialog_load(self, basepath: Path) -> Path:
         """Abre un diálogo para seleccionar un archivo para abrir"""
         path = fd.askopenfilename(
@@ -143,7 +174,50 @@ class MarxCLI:
             initialdir=basepath,
             title="Guardar base de datos",
         )
+        Path(path).touch()
         return self.validate_path(path)
+
+    def parse_date(self, date: str | datetime | None) -> datetime:
+        """Convierte 'date' a un objeto 'datetime'"""
+        if date is None:
+            return datetime.now()
+        if isinstance(date, datetime):
+            return date
+        if not isinstance(date, str):
+            raise TypeError(f"[MarxCLI] Formato de fecha no válida: {date!r}")
+        if all(char.isdigit() for char in date):
+            return datetime.strptime(date, "%Y%m%d")
+        blocks = []
+        block = []
+        for char in date:
+            if char.isdigit():
+                block.append(char)
+            else:
+                blocks.append("".join(block))
+                block = []
+        blocks.append("".join(block))
+        if not len(blocks) == 3:
+            raise ValueError(f"[MarxCLI] Formato de fecha no válida: {date!r}")
+        if len(blocks[0]) == 4:
+            return datetime.strptime("-".join(blocks), "%Y-%m-%d")
+        elif len(blocks[2]) == 4:
+            return datetime.strptime("-".join(blocks), "%d-%m-%Y")
+        raise ValueError(f"[MarxCLI] Formato de fecha no válida: {date!r}")
+
+    def format_event(self, event: dict) -> str:
+        """Formatea un evento para mostrarlo por pantalla"""
+        id = "----" if event["id"] == -1 else f"{event['id']:04d}"
+        sign = "+" if event["flow"] == 1 else "-" if event["flow"] == -1 else "="
+        amount = f"{sign} {event['amount']:8.2f} €"
+        shconcept = event["concept"]
+        if len(shconcept) > 20:
+            shconcept = f"{shconcept[:17]}..."
+        status = "OPEN" if event["status"] == 0 else "CLOSED"
+        rsource = "" if event["rsource"] == -1 else f" RSOURCE {event['rsource']}"
+        catcode = event["category"]["code"]
+        orig = event["orig"]["repr_name"]
+        dest = event["dest"]["repr_name"]
+        return f"[{id}] {amount} {event['date']} {shconcept!r} - [{catcode}] {orig} -> {dest} ({status}{rsource})"
 
     # Adaptadores de la API de Marx
 
@@ -162,16 +236,12 @@ class MarxCLI:
 
         """
         key = key or "auto"
-        if isinstance(key, Path):
-            path = key
+        if key in ("auto", "pick"):
+            path = self.userconfig.get("databases_dir")
+        else:
+            path = Path(key)
             if not path.is_absolute():
                 path = self.userconfig.get("databases_dir") / key
-        elif key in ("auto", "pick"):
-            path = self.userconfig.get("databases_dir")
-        elif os.path.isabs(key):
-            path = Path(key)
-        else:
-            path = self.userconfig.get("databases_dir") / key
         # Verificar que la ruta es válida
         path = self.validate_path(path)
         # Cargar la base de datos
@@ -190,15 +260,46 @@ class MarxCLI:
         """Guardar la base de datos actual de Marx
 
         Siempre se guardan los cambios en una nueva base de datos, formada a
-        partir de la original. Si 'key' es None o 'auto', se escogerá un nombre
-        seguro automáticamente, en el mismo directorio que la base de datos
-        original. Si es 'pick', se abrirá una ventana de diálogo para elegir un
-        nombre. En caso contrario, si es un nombre de fichero, se guardará en
-        la misma dirección que la base de datos original, y si es una ruta
-        completa, se usará directamente.
+        partir de la original. Si 'key' es None o 'auto', no se modificará el
+        nombre que por defecto le asigna la API a la nueva base de datos;
+        excepto si se especifica uno diferente en el parámetro
+        'default_save_prefix' del archivo de configuración de usuario. Si es
+        'pick', se abrirá una ventana de diálogo para elegir un nombre. En caso
+        contrario, si es un nombre de fichero, se guardará en la misma
+        dirección que la base de datos original, y si es una ruta completa, se
+        usará directamente.
+
+        En caso de usar una ruta relativa o absoluta, se puede usar el
+        comodín '?', que se sustituirá por el nombre de original de la base de
+        datos.
 
         """
-        raise NotImplementedError
+        default_path = self.marx.save()
+        source_name = default_path.name.split("_", 1)[1]
+        # auto
+        if not key or key == "auto":
+            default_prefix = self.userconfig.get("default_save_prefix", safe=False)
+            if default_prefix:
+                clean_path = default_path.parent / source_name
+                new_path = safely_rename_file(clean_path, default_prefix)
+            else:
+                new_path = default_path
+        # pick
+        elif key == "pick":
+            new_path = self.dialog_save(default_path.parent)
+        # else
+        else:
+            new_path = Path(key)
+            if not new_path.is_absolute():
+                new_path = default_path.parent / key
+        # reemplazar comodín
+        if "?" in new_path.name:
+            new_path = new_path.with_name(new_path.name.replace("?", source_name))
+        # reemplazar antiguo archivo por nuevo
+        default_path.replace(new_path)
+        # validar
+        new_path = self.validate_path(new_path)
+        print(f"Se ha guardado la base de datos en la ruta '{new_path}'")
 
     def autoquotas(self, date: str | datetime | None = None) -> None:
         """Distribuye automáticamente las cuotas mensuales
@@ -206,12 +307,13 @@ class MarxCLI:
         Utiliza el archivo de criterios especificado en la configuración de
         usuario. 'date' es la fecha en la que se imputarán las cuotas; si es
         None, usará la fecha actual; si es una cadena de caracteres, tendrá que
-        tener formato 'YYYY-MM-DD' o 'DD-MM-YYYY', teniendo en
+        tener formato 'YYYYMMDD', 'YYYY-MM-DD' o 'DD-MM-YYYY', teniendo en
         cuenta que '-' puede ser cualquier caracter no alfanumérico, o incluso
         ninguno.
 
         """
-        raise NotImplementedError
+        criteria = self.userconfig.get("autoquotas_criteria_path")
+        self.distr(criteria, date)
 
     def autoinvest(self, date: str | datetime | None = None) -> None:
         """Distribuye automáticamente inversiones
@@ -219,12 +321,13 @@ class MarxCLI:
         Utiliza el archivo de criterios especificado en la configuración de
         usuario. 'date' es la fecha en la que se imputarán las cuotas; si es
         None, usará la fecha actual; si es una cadena de caracteres, tendrá que
-        tener formato 'YYYY-MM-DD' o 'DD-MM-YYYY', teniendo en
+        tener formato 'YYYYMMDD', 'YYYY-MM-DD' o 'DD-MM-YYYY', teniendo en
         cuenta que '-' puede ser cualquier caracter no alfanumérico, o incluso
         ninguno.
 
         """
-        raise NotImplementedError
+        criteria = self.userconfig.get("autoinvest_criteria_path")
+        self.distr(criteria, date)
 
     def distr(self, criteria_path: str | Path, date: str | datetime | None = None) -> None:
         """Distribuye automáticamente según el archivo de criterios indicado
@@ -232,37 +335,83 @@ class MarxCLI:
 
         'date' es la fecha en la que se imputarán las cuotas; si es None, usará
         la fecha actual; si es una cadena de caracteres, tendrá que tener
-        formato 'YYYY-MM-DD' o 'DD-MM-YYYY', teniendo en cuenta que '-' puede
+        formato 'YYYYMMDD', 'YYYY-MM-DD' o 'DD-MM-YYYY', teniendo en cuenta que '-' puede
         ser cualquier caracter no alfanumérico, o incluso ninguno.
 
         """
-        raise NotImplementedError
+        date = self.parse_date(date)
+        criteria_path = self.validate_path(criteria_path)
+        res = self.marx.distr(criteria_path, date)
+        print("Distribución realizada con éxito")
+        events_date = res["events"][-1]["date"]
+        print(f"Eventos generados para fecha {events_date}:")
+        for event in res["events"]:
+            catcode = event["category"]["code"]
+            orig = event["orig"]["repr_name"]
+            dest = event["dest"]["repr_name"]
+            print(
+                f" > {event['amount']:8.2f} € [{catcode}] ({orig} -> {dest}) {event['concept']!r}"
+            )
+        print()
 
     def paycheck(
         self,
-        paycheck_path: str | Path | None,
-        criteria_path: str | Path | None,
+        paycheck_path: str | Path | None = None,
+        criteria_path: str | Path | None = None,
         date: str | datetime | None = None,
     ) -> None:
         """Distribuye automáticamente según el archivo de nómina indicado en
         'paycheck_path' y el archivo de criterios indicado en 'criteria_path'
 
-        Si 'paycheck_path' no se indica, se utilizará el que aparezca en la
-        configuración de usuario; lo mismo para 'criteria_path'. 'date' es la
-        fecha en la que se imputarán las cuotas; si es None, usará la fecha
-        actual; si es una cadena de caracteres, tendrá que tener formato
-        'YYYY-MM-DD' o 'DD-MM-YYYY', teniendo en cuenta que '-' puede ser
-        cualquier caracter no alfanumérico, o incluso ninguno.
+        Si 'paycheck_path' es una ruta relativa, se buscará a partir del
+        directorio indicado en el archivo de configuración ('paychecks_dir').
+        Si 'paycheck_path' no se indica, se utilizará el archivo de nómina más
+        reciente del directorio indicado en la configuración de usuario.
+        Si 'criteria_path' no se indica, se utilizará la ruta que aparezca en
+        el archivo de configuración de usuario ('paycheckparser_criteria_path')
+
+        'date' es la fecha en la que se imputarán las cuotas; si es None, usará
+        la fecha actual; si es una cadena de caracteres, tendrá que tener
+        formato 'YYYY-MM-DD' o 'DD-MM-YYYY', teniendo en cuenta que '-' puede
+        ser cualquier caracter no alfanumérico, o incluso ninguno.
 
         """
-        raise NotImplementedError
+        # date
+        date = self.parse_date(date)
+        # criteria
+        if not criteria_path:
+            criteria_path = self.userconfig.get("paycheckparser_criteria_path")
+            criteria_path = self.validate_path(criteria_path)
+        # paycheck
+        if not paycheck_path:
+            paychecks_dir = self.userconfig.get("paychecks_dir")
+            paycheck_path = self.most_recent_paycheck(paychecks_dir)
+        else:
+            paycheck_path = Path(paycheck_path)
+            if not paycheck_path.is_absolute():
+                paychecks_dir = self.userconfig.get("paychecks_dir")
+                paycheck_path = paychecks_dir / paycheck_path
+        paycheck_path = self.validate_path(paycheck_path)
+        # distribución
+        res = self.marx.paycheck_parse(paycheck_path, criteria_path, date)
+        print("Distribución realizada con éxito")
+        events_date = res["events"][-1]["date"]
+        print(f"Eventos generados para fecha {events_date}:")
+        for event in res["events"]:
+            sign = "+" if event["flow"] == 1 else "-" if event["flow"] == -1 else "="
+            catcode = event["category"]["code"]
+            orig2dest = f"({event['orig']['repr_name']: <12} -> {event['dest']['repr_name']})"
+            print(
+                f" {sign}{event['amount']:8.2f} € [{catcode}] {orig2dest: <38} {event['concept']!r}"
+            )
+        print()
 
     def loans_list(self, date: str | datetime | None = None) -> None:
         """Identifica y muestra los préstamos y deudas pendientes
 
         'date' es la fecha hasta la que se buscan ambos conceptos; si es None,
         usará la fecha actual; si es una cadena de caracteres, tendrá que tener
-        formato 'YYYY-MM-DD' o 'DD-MM-YYYY', teniendo en cuenta que '-' puede
+        formato 'YYYYMMDD', 'YYYY-MM-DD' o 'DD-MM-YYYY', teniendo en cuenta que '-' puede
         ser cualquier caracter no alfanumérico, o incluso ninguno.
 
         """
