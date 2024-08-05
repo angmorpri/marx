@@ -25,3 +25,4 @@ paycheckparse_save_prefix = ""
 
 [cli]
 on_cli_startup = ""
+on_cli_shutdown = ""

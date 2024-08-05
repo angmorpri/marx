@@ -128,6 +128,7 @@ class Marx:
                 "amount": loan.amount,
                 "paid": loan.paid,
                 "remaining": loan.remaining,
+                "counterparts": loan.counterparts,
                 "events": [event.serialize() for event in loan.events],
             }
             for loan in loans

@@ -98,13 +98,48 @@ def test_distr():
 
 def test_paychecks():
     marxcli = MarxCLI(USERCONFIG)
-    marxcli = MarxCLI(USERCONFIG)
     print(">>> load <TESTING_DB>")
     marxcli.load(TESTING_DB)
 
     print(">>> paycheck")
     marxcli.paycheck()
 
+    print(">>> paycheck 02-2024-X.pdf")
+    marxcli.paycheck("02-2024-X.pdf")
+
+    print(">>> paycheck C:/Users/angel/OneDrive - Telefonica/Documentos/Nóminas/01-2024.pdf")
+    marxcli.paycheck("C:/Users/angel/OneDrive - Telefonica/Documentos/Nóminas/01-2024.pdf")
+
+    print(
+        ">>> paycheck 07-2024.pdf C:/Users/angel/Programación/projects/marx/tests/files/paycheck.toml 20241010"
+    )
+    marxcli.paycheck(
+        "07-2024.pdf",
+        "C:/Users/angel/Programación/projects/marx/tests/files/paycheck.toml",
+        "20241010",
+    )
+
+    print(">>> save")
+    marxcli.save()
+
+
+def test_loans():
+    marxcli = MarxCLI(USERCONFIG)
+    print(">>> load <TESTING_DB>")
+    marxcli.load(TESTING_DB)
+
+    print(">>> loans")
+    marxcli.loans_list()
+
+    print(">>> loans 2024-01-01")
+    marxcli.loans_list("2024-01-01")
+
+    print(">>> loans default THORLT")
+    marxcli.loans_default("THORLT")
+
+    print(">>> loans")
+    marxcli.loans_list()
+
 
 if __name__ == "__main__":
-    test_paychecks()
+    test_loans()

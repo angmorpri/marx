@@ -33,10 +33,10 @@ from marx.util.factory import Factory
 
 LOAN_TAG_PATTERN = r"\[.*?\]"
 
-DEBTOR_IN = "A24"
-DEBTOR_OUT = "B13"
 CREDITOR_IN = "A23"
+DEBTOR_IN = "A24"
 CREDITOR_OUT = "B14"
+DEBTOR_OUT = "B13"
 
 DEFAULT_MARK = "!"
 
@@ -121,7 +121,7 @@ class Loan:
         return max(0.0, self.paid - self.amount)
 
     @property
-    def counterpart(self) -> str:
+    def counterparts(self) -> str:
         """Prestamista o deudor"""
         cps = set()
         for event in self.events:
@@ -154,7 +154,7 @@ class Loan:
         )
         print(f"{tag} {pos} / {status} ({span})")
         print(f"| T: {self.amount:.2f} € / P: {self.paid:.2f} € / R: {self.remaining:.2f} €")
-        print(f"| {self.counterpart}")
+        print(f"| {self.counterparts}")
         print(f"| {len(self.events)} events")
         print()
 
