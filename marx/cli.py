@@ -138,7 +138,7 @@ class MarxCLI:
     def args(self, args: list[str]) -> None:
         """Procesa los argumentos de la línea de comandos"""
         self.setup()
-        self.autorun("on_cli_startup", allback=["load auto"])
+        self.autorun("on_cli_startup", fallback=["load auto"])
         args = self.parser.parse_args(args)
         args.func(args)
         self.autorun("on_cli_shutdown", fallback=["save auto"])
@@ -147,7 +147,8 @@ class MarxCLI:
         """Inicia un intérprete interactivo"""
         self.setup(interactive=True)
         self.autorun("on_cli_startup")
-        while True:
+        self._cont = True
+        while self._cont:
             try:
                 command = input(">>> ")
                 if not command:
@@ -311,13 +312,14 @@ class MarxCLI:
         # Cargar la base de datos
         if key == "auto":
             path = self.most_recent_db(path)
+            print("Se selecciona la base de datos más reciente de forma automática")
         elif key == "pick":
             path = self.dialog_load(path)
         if not path.is_file():
             error(f"La ruta proporcionada '{path}' no es un archivo de base de datos")
             return
         self.marx.load(path)
-        print(f"Se ha cargado la base de datos en la ruta '{path}'")
+        print(f"Se ha cargado la base de datos del archivo '{path}'")
 
     def save(self, key: str | Path | None = None) -> None:
         """Guardar la base de datos actual de Marx
@@ -527,7 +529,37 @@ class MarxCLI:
         self.marx.loans_default(tag)
         print(f"Préstamo {tag!r} marcado exitosamente como default")
 
+    # Comandos extra para el modo interactivo
+
+    def source(self) -> None:
+        """Muestra la base de datos actualmente cargada"""
+        if self.marx.mapper is None:
+            print(
+                "No hay ninguna base de datos cargada todavía. Usa el comando 'load' para cargar una."
+            )
+        else:
+            print(self.marx.mapper.source)
+
+    def cfg_reload(self) -> None:
+        """Recarga la configuración de usuario"""
+        self.userconfig = UserConfig(self.userconfig.path)
+        print("Se ha recargado la configuración de usuario")
+
+    def exit(self) -> None:
+        """Sale del intérprete interactivo"""
+        print("¡Hasta luego!\n\n")
+        self._cont = False
+
     # Métodos de la interfaz de usuario
+
+    def autorun(self, key: str, fallback: list[str] | None = None) -> None:
+        """Ejecuta comandos automáticamente"""
+        user_command = self.userconfig.get(key, safe=False)
+        commands = user_command or fallback or []
+        for command in always_iterable(commands):
+            print(f">>> {command}")
+            args = self.parser.parse_args(command.split())
+            args.func(args)
 
     def setup(self, *, interactive: bool = False) -> None:
         """Configura los comandos y opciones de la interfaz de usuario"""
@@ -618,15 +650,42 @@ class MarxCLI:
         loans_default_parser.add_argument("tag", help="Etiqueta del préstamo")
         loans_default_parser.set_defaults(func=lambda args: self.loans_default(args.tag))
 
-    def autorun(self, key: str, fallback: list[str] | None = None) -> None:
-        """Ejecuta comandos automáticamente"""
-        fallback = fallback or []
-        user_command = self.userconfig.get(key, safe=True)
-        if user_command is None:
-            for command in fallback:
-                args = self.parser.parse_args(command.split())
-                args.func(args)
-        else:
-            for command in always_iterable(user_command):
-                args = self.parser.parse_args(command.split())
-                args.func(args)
+        # Comandos para modo interactivo
+        if interactive:
+            source_parser = subparsers.add_parser(
+                "source", aliases=["current"], help="Mostrar la base de datos actualmente cargada"
+            )
+            source_parser.set_defaults(func=lambda _: self.source())
+
+            cfgreload_parser = subparsers.add_parser(
+                "config_reload", aliases=["cfgr"], help="Recargar la configuración de usuario"
+            )
+            cfgreload_parser.set_defaults(func=lambda _: self.cfg_reload())
+
+            exit_parser = subparsers.add_parser(
+                "exit", aliases=["x"], help="Salir del intérprete interactivo"
+            )
+            exit_parser.set_defaults(func=lambda _: self.exit())
+
+            help_parser = subparsers.add_parser("help", aliases=["h"], help="Mostrar ayuda")
+            help_parser.set_defaults(func=lambda _: self.parser.print_help())
+
+            # También lanza un mensaje de saludo
+            print(
+                """
+                
+Bienvenido al gestor de finanzas personales
+
+    ███    ███ █████ ██████ ██   ██ 
+    ████  ██████   ████   ██ ██ ██  
+    ██ ████ ███████████████   ███   
+    ██  ██  ████   ████   ██ ██ ██  
+    ██      ████   ████   ████   ██ 
+            
+Usa 'help' o 'h' para ver las opciones disponibles.
+Usa 'exit' o 'x' para salir.
+
+Puede comenzar cargando una base de datos con 'load'.
+
+"""
+            )

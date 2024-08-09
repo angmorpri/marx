@@ -41,6 +41,8 @@ class Marx:
 
     def __init__(self) -> None:
         self.dbg_mode = False
+        self.mapper = None
+        self.data = None
 
     def load(self, path: Path) -> None:
         """Carga la base de datos"""

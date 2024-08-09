@@ -12,17 +12,14 @@ default_save_prefix = "CLIMOD$_"
 
 [autoquotas]
 autoquotas_criteria_path = "C:/Users/angel/Programación/projects/marx/tests/files/autoquotas.toml"
-autoquotas_save_prefix = ""
 
 [autoinvest]
 autoinvest_criteria_path = "C:/Users/angel/Programación/projects/marx/tests/files/autoinvest.toml"
-autoinvest_save_prefix = ""
 
 [paycheckparse]
 paychecks_dir = "C:/Users/angel/OneDrive - Telefonica/Documentos/Nóminas"
 paycheckparser_criteria_path = "C:/Users/angel/Programación/projects/marx/tests/files/paycheck.toml"
-paycheckparse_save_prefix = ""
 
 [cli]
-on_cli_startup = ""
-on_cli_shutdown = ""
+on_cli_startup = "load auto"
+on_cli_shutdown = "save auto"
