@@ -12,6 +12,7 @@ scripts/*_ExpensoDB
 
 # Archivos de pruebas
 testing.py
+*.lnk
 
 
 # Byte-compiled / optimized / DLL files

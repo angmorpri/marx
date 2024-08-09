@@ -1,0 +1,25 @@
+# Marx User Configuration File
+# '*_dir' and '*_path' fields must be absolute paths
+# '*_save_prefix' fields must be any alphanumeric string without spaces,
+# preferably ended with '_'. If '$' is used, it will be replace by a numeric
+# index, only if the file already exists
+# 'on_cli_startup' field must be a valid command to run on MarxCLI, or a list
+# of commands separated by commas
+
+[db]
+databases_dir = "G:/Mi unidad/MiBilletera Backups"
+default_save_prefix = "CLIMOD$_"
+
+[autoquotas]
+autoquotas_criteria_path = "C:/Users/angel/Programación/projects/marx/tests/files/autoquotas.toml"
+
+[autoinvest]
+autoinvest_criteria_path = "C:/Users/angel/Programación/projects/marx/tests/files/autoinvest.toml"
+
+[paycheckparse]
+paychecks_dir = "C:/Users/angel/OneDrive - Telefonica/Documentos/Nóminas"
+paycheckparser_criteria_path = "C:/Users/angel/Programación/projects/marx/tests/files/paycheck.toml"
+
+[cli]
+on_cli_startup = "load auto"
+on_cli_shutdown = "save auto"

@@ -1,200 +1,212 @@
 # Python 3.10.11
-# Creado: 31/01/2024
-"""Gestión y seguimiento de préstamos.
+# Creado: 01/08/2024
+"""Herramienta para gestionar préstamos y deudas
 
-Proporciona un mecanismo para gestionar préstamos en una contabilidad
-gestionada por Marx. Los eventos relacionados con un mismo préstamo deben 
-presentar una etiqueta diferenciante, que tendrá forma "[...]" y se debe
-incluir en los detalles del evento.
+Se considera "préstamo" cuando el usuario es el acreedor, esto es, es el que
+presta dinero a otra persona. Se considera "deuda" en el caso contrario, cuando
+es el usuario el deudor, el que ha sido prestado dinero. Para ambos casos,
+existirán categorías duplicadas de "préstamo" y "deuda", cambiando el signo en
+función de si el usuario es el acreedor o el deudor.
 
-En líneas generales, un préstamo se compone de una serie de pagos y una serie
-de devoluciones. Sin embargo, si un préstamo se conoce que no va a ser devuelto
-en su totalidad, se puede generar un "impago" o "default". Esta situación se
-representa en el balance mediante dos eventos: el primero, de impago, se
-representa como un ingreso de valor equivalente a la cantidad restante por
-recibir; el segundo, de ajuste, se representa como un gasto de igual valor; de
-tal manera que, a efectos contables, el balance se mantiene equilibrado.
+Todos los eventos que formen parte de un mismo préstamo o deuda serán
+identificados por una etiqueta con formato "[<...>]", que debe aparecer en los
+detalles del evento.
 
-Para gestionar todo esto, se presenta una clase 'Loan', que representa un
-préstamo en sí, y luego una interfaz 'LoansHandler', que permite encontrar
-préstamos en un balance y generar eventos de impago cuando sean necesarios.
+Se presenta la clase 'LoansHandler', a través de la cuál se pueden identificar
+y listar todos los préstamos y deudas existentes y su estado hasta cierta
+fecha, y también se puede generar un default en un préstamo, esto es, marcarlo
+como que no se va a devolver o saldar (formalmente, lo único que hace es
+añadir '!' delante de la etiqueta identificadora del préstamo).
+
+Se apoya en el modelo 'Loan', que representa un préstamo o deuda.
 
 """
 
+from __future__ import annotations
+
 import re
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 
-from marx.model import MarxDataStruct, Event
-
-
-CLOSED = 1
-OPEN = 0
-DEFAULT = -1
+from marx.models import Event, MarxDataStruct
+from marx.util.factory import Factory
 
 
-@dataclass
+LOAN_TAG_PATTERN = r"\[.*?\]"
+
+CREDITOR_IN = "A23"
+DEBTOR_IN = "A24"
+CREDITOR_OUT = "B14"
+DEBTOR_OUT = "B13"
+
+DEFAULT_MARK = "!"
+
+
 class Loan:
-    """Clase que representa un préstamo.
+    """Préstamo o deuda
 
-    Todos los eventos relacionados con un mismo préstamo son representados por
-    una misma etiqueta ('tag').
-
-    Un préstamo consiste en una serie de pagos ('paid') y una serie de
-    devoluciones ('returned'). El saldo restante ('left') se calcula como la
-    diferencia entre la cantidad total prestada ('total_paid') y la cantidad
-    total devuelta ('total_returned').
-
-    Por otro lado, si un préstamo se encuentra en situación de impago, existe
-    un evento 'default' que representa el impago en sí, y que será equivalente
-    a la cantidad restante por devolver. Además, existe también un evento
-    'fix', equivalente a 'default', que sirve para ajustar el balance.
-
-    Finalmente, 'status' indica el estado del préstamo, que puede ser abierto
-    (0), cerrado (1) o en situación de impago (-1).
+    El constructor recibe la etiqueta identificativa a la que pertenece, y, a
+    modo informativo, la fecha hasta la que extraen eventos relacionados con
+    ésta.
 
     """
 
-    tag: str
-    paid: list[Event] = field(default_factory=list)
-    returned: list[Event] = field(default_factory=list)
-    default: Event | None = None
-    fix: Event | None = None
+    DEBTOR = -1
+    CREDITOR = 1
+
+    ONGOING = 0
+    CLOSED = 1
+    DEFAULT = -1
+
+    def __init__(self, tag: str, stop_date: datetime):
+        self.tag = tag.strip("[]")
+        self.default = False
+        if self.tag.startswith(DEFAULT_MARK):
+            self.tag = self.tag[1:]
+            self.default = True
+        self.stop_date = stop_date
+        self.events = []
+
+    def add(self, event: Event) -> None:
+        """Añade un evento al préstamo o deuda"""
+        self.events.append(event)
 
     @property
-    def total_paid(self) -> float:
-        """Cantidad total prestada."""
-        return sum(event.amount for event in self.paid)
-
-    @property
-    def total_returned(self) -> float:
-        """Cantidad total devuelta."""
-        return sum(event.amount for event in self.returned)
-
-    @property
-    def left(self) -> float:
-        """Cantidad restante por devolver."""
-        return max(0.0, self.total_paid - self.total_returned)
+    def position(self) -> int:
+        """Posición del usuario en el préstamo o deuda"""
+        catcode = self.events[0].category.code
+        if catcode in (DEBTOR_IN, DEBTOR_OUT):
+            return Loan.DEBTOR
+        if catcode in (CREDITOR_IN, CREDITOR_OUT):
+            return Loan.CREDITOR
 
     @property
     def status(self) -> int:
-        """Estado del préstamo."""
-        if self.left == 0:
-            return CLOSED
-        elif self.default is not None:
-            return DEFAULT
-        return OPEN
+        """Estado del préstamo o deuda"""
+        if self.default:
+            return Loan.DEFAULT
+        elif self.remaining != 0:
+            return Loan.ONGOING
+        return Loan.CLOSED
+
+    @property
+    def start_date(self) -> datetime:
+        """Fecha de inicio del préstamo o deuda"""
+        return list(sorted(self.events, key=lambda x: x.date))[0].date
+
+    @property
+    def end_date(self) -> datetime | None:
+        """Fecha de fin del préstamo o deuda"""
+        if self.status in (Loan.CLOSED, Loan.DEFAULT):
+            return list(sorted(self.events, key=lambda x: x.date))[-1].date
+        return None
+
+    @property
+    def amount(self) -> float:
+        """Cantidad prestada o adeudada"""
+        return sum(e.amount for e in self.events if e.category.code in (DEBTOR_IN, CREDITOR_OUT))
+
+    @property
+    def paid(self) -> float:
+        """Cantidad devuelta o saldada"""
+        return sum(e.amount for e in self.events if e.category.code in (DEBTOR_OUT, CREDITOR_IN))
+
+    @property
+    def remaining(self) -> float:
+        """Cantidad restante por devolver o saldar"""
+        return max(0.0, self.amount - self.paid)
+
+    @property
+    def surplus(self) -> float:
+        """Cantidad devuelta o saldada de más"""
+        return max(0.0, self.paid - self.amount)
+
+    @property
+    def counterparts(self) -> str:
+        """Prestamista o deudor"""
+        cps = set()
+        for event in self.events:
+            cps.add(event.counterpart.name)
+        return "; ".join(cps)
+
+    def __eq__(self, other: Loan) -> bool:
+        return self.tag == other.tag
+
+    def __lt__(self, other: Loan) -> bool:
+        return (self.start_date, self.tag) < (other.start_date, other.tag)
+
+    def __str__(self) -> str:
+        default = "!" if self.default else ""
+        pos = "DEBTOR" if self.position == Loan.DEBTOR else "CREDITOR"
+        return f"Loan([{default}{self.tag}] {pos}, {self.amount:.2f} / {self.paid:.2f} / {self.remaining:.2f} €)"
+
+    def show(self) -> None:
+        tag = f"[{self.tag}]"
+        pos = "DEBTOR" if self.position == Loan.DEBTOR else "CREDITOR"
+        status = (
+            "OPEN"
+            if self.status == Loan.ONGOING
+            else "CLOSED" if self.status == Loan.CLOSED else "DEFAULT"
+        )
+        span = (
+            f"{self.start_date:%Y/%m/%d} - {self.end_date:%Y/%m/%d}"
+            if self.end_date
+            else f"{self.start_date:%Y/%m/%d} - "
+        )
+        print(f"{tag} {pos} / {status} ({span})")
+        print(f"| T: {self.amount:.2f} € / P: {self.paid:.2f} € / R: {self.remaining:.2f} €")
+        print(f"| {self.counterparts}")
+        print(f"| {len(self.events)} events")
+        print()
 
 
 class LoansHandler:
-    """Interfaz para la gestión de préstamos en una contabilidad.
+    """Gestor de préstamos y deudas
 
-    Permite encontrarlos mediante el método 'find' y generar eventos de impago
-    mediante 'create_default'.
+    Permite identificar préstamos y deudas y sus estados hasta cierta fecha, y,
+    también, generar defaults en préstamos y deudas.
 
-    El constructor sólo recibe una estructura de datos de Marx ya cargada.
+    El constructor recibe la estructura de datos Marx que se esté usando. Para
+    identificar préstamos, se debe llamar al método 'find' con la fecha hasta
+    la que se desea buscar. Para generar defaults, se debe llamar al método
+    'default' junto con la etiqueta del préstamo o deuda a aplicar.
 
     """
 
-    def __init__(self, data: MarxDataStruct) -> None:
+    def __init__(self, data: MarxDataStruct):
         self.data = data
-        self.loans = {}
 
-    def find(
-        self, from_date: datetime | None = None, to_date: datetime | None = None
-    ) -> dict[str, Loan]:
-        """Ubica todos los préstamos presentes en un balance, y los devuelve.
+    def find(self, stop_date: datetime) -> list[Loan]:
+        """Encuentra los préstamos y deudas abiertos a cierta fecha
 
-        Se puede especificar un rango de fechas para buscar los préstamos.
-        Si no se especifica, se buscarán todos los préstamos en el balance.
-
-        El diccionario devuelto tiene la forma {etiqueta: préstamo}.
+        Devuelve una lista de objetos 'Loan', representando todos los préstamos
+        y deudas encontrados y sus estados hasta la fecha especificada.
 
         """
-        # Fechas
-        from_date = from_date or datetime(1970, 1, 1)
-        to_date = to_date or datetime(2038, 1, 1)
-
-        # Préstamos
         loans = {}
-        loan_tag_pattern = r"\[([^\[\]]+)\]"
-        for event in self.data.events.search(
-            lambda ev: from_date <= ev.date <= to_date,
-            lambda ev: ev.category.code in ("B14", "A23", "B15", "A41"),
-            status=CLOSED,
+        for event in self.data.events.subset(
+            lambda x: x.date <= stop_date,
+            lambda x: re.search(LOAN_TAG_PATTERN, x.details),
         ):
-            if tags := re.findall(loan_tag_pattern, event.details):
+            tags = re.findall(LOAN_TAG_PATTERN, event.details)
+            if tags:
                 tag = tags[0]
                 if tag not in loans:
-                    loans[tag] = Loan(tag)
-                if event.category.code == "B14":
-                    loans[tag].paid.append(event)
-                elif event.category.code == "A23":
-                    loans[tag].returned.append(event)
-                elif event.category.code == "B15":
-                    loans[tag].default = event
-                elif event.category.code == "A41":
-                    loans[tag].fix = event
-        return loans
+                    loans[tag] = Loan(tag, stop_date)
+                loans[tag].add(event)
+        return list(sorted(loans.values()))
 
-    def create_default(
-        self, loan: str | Loan, date: int | datetime | None = None, *, store: bool = False
-    ) -> tuple[Event, Event]:
-        """Genera eventos de impago para un préstamo.
-
-        El préstamo puede ser proporcionado mediante su etiqueta o directamente
-        como objeto Loan.
-
-        Genera un evento de impago ('default') y otro de ajuste ('fix'). Si no
-        se puede porque el préstamo ya está cerrado o en situación de impago,
-        se lanzará una excepción.
-
-        Se puede indicar una fecha que asignar a los eventos creados. Si no se
-        proporciona, se tomará la fecha actual. Además, si se proporciona un
-        entero, se asignarán tantos días después de la fecha del último pago
-        recibido, o de la ejecución del préstamo si no se han registrado pagos.
-
-        Si 'store' es True, los eventos se consolidan directamente en la base
-        de datos. Por defecto, será False.
-
-        Devuelve los eventos generados.
-
-        """
-        # Préstamo
-        if isinstance(loan, str):
-            loan = self.loans[loan]
-
-        # Fecha
-        date = date or datetime.now()
-        if isinstance(date, int):
-            if loan.returned:
-                date = loan.returned[-1].date + timedelta(days=date)
-            else:
-                date = loan.paid[-1].date + timedelta(days=date)
-
-        # Comprobaciones
-        if loan.status != OPEN:
-            raise ValueError("El préstamo está cerrado o ya está en situación de impago.")
-
-        # Gasto por impago y ajuste
-        default = Event(
-            -1,
-            date=date,
-            amount=loan.left,
-            category=self.data.categories["B15"],
-            orig=loan.paid[-1].orig,  # Cuenta origen del préstamo
-            dest=loan.tag,  # Etiqueta del préstamo
-            concept="Impago de préstamo",
-            details=f"[{loan.tag}] {loan.paid[-1].dest}",
-        )
-        fix = Event(
-            -1,
-            date=date,
-            amount=loan.left,
-            category=self.data.categories["A41"],
-            orig="Impago de préstamo",
-            dest=loan.paid[-1].orig,  # Cuenta origen del préstamo
-            concept="Ajuste de balance por impago",
-            details=f"[{loan.tag}]",
-        )
-        return default, fix
+    def default(self, tag: str) -> Factory[Event]:
+        """Genera un default en un préstamo o deuda"""
+        loans = self.find(datetime.now())
+        target = next((l for l in loans if l.tag == tag), None)
+        if target is None:
+            raise ValueError(f"[Loan] Préstamo o deuda con etiqueta {tag!r} no encontrado")
+        if target.status == Loan.CLOSED:
+            raise ValueError(f"[Loan] Préstamo o deuda con etiqueta {tag!r} ya cerrado")
+        if target.status == Loan.DEFAULT:
+            return
+        events = self.data.events.subset()
+        for event in target.events:
+            event.details = event.details.replace(f"[{tag}]", f"[!{tag}]")
+            events.join(event)
+        return events

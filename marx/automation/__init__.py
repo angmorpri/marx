@@ -3,5 +3,5 @@
 """Módulo para definición de herramientas de automatización de acciones."""
 
 from .distribution import Distribution
-from .loans import Loan, LoansHandler
-from .wageparser import WageParser
+from .loans import LoansHandler
+from .paycheckparser import PaycheckParser

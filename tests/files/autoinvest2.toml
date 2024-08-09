@@ -1,0 +1,21 @@
+[source]
+target = "@Reserva"
+amount = 730.01
+
+[sinks]
+target = "@Inversión"
+
+[sinks.indie]
+amount = 232.36
+category = "T24"
+concept = "MyInvestor Indie"
+
+[sinks.yellow]
+amount = 232.36
+category = "T24"
+concept = "Finanbest Profile Yellow"
+
+[sinks.value]
+amount = 265.29
+category = "T23"
+concept = "MyInvestor Value"

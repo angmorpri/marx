@@ -1,63 +1,55 @@
 [atam]
 match = "A.T.A.M."
-flow = -1
-category = B82
+order = 400
+category = "B82"
 dest = "Telefónica"
 concept = "ATAM"
-order = 400
 
 [pp]
 match = "PLAN PENSIONES"
-flow = -1
-category = T25
+order = 500
+category = "T25"
 dest = "@Inversión"
 concept = "Plan de pensiones de Telefónica"
-order = 500
 
 [irpf]
 match = "I.R.P.F."
-flow = -1
-category = B11
+order = 200
+category = "B11"
 dest = "Hacienda"
 concept = "IRPF"
-details = "($pct$)"
-order = 200
+details = "(%pct%)"
 
 [acciones]
 match = "PLAN DE ACCIONES"
-flow = -1
-category = T27
+order = 600
+category = "T27"
 dest = "@Inversión"
 concept = "Plan de acciones de Telefónica"
-order = 600
 
 [ss]
 match = "SEGURIDAD SOCIAL"
-flow = -1
-category = B11
+order = 300
+category = "B11"
 dest = "Seguridad Social"
 concept = "Seguridad Social"
-order = 300
 
 [plus]
 match = "PLUS"
-flow = 1
-category = A12
+order = 175
+category = "A12"
 orig = "Telefónica"
 concept = "Plus del convenio"
-order = 175
 
 [extra]
-match = "(PAGA)", "(BENEF.)"
-flow = 1
-category = A12
-orig = "Telefónica"
-concept = "Paga extra de $whyextra$"
+match = ["(PAGA)", "(BENEF.)"]
 order = 150
+category = "A12"
+orig = "Telefónica"
+concept = "Paga extra de %occasion%"
 
-[default]
-flow = 1
-category = A11
+[_default_]
+order = 100
+category = "A11"
 orig = "Telefónica"
 concept = "Nómina bruta"
-order = 100

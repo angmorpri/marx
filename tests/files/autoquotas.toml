@@ -1,0 +1,22 @@
+[source]
+target = "@Ingresos"
+ratio = 1
+
+[sinks]
+category = "T11"
+
+[sinks.basico]
+target = "@Básicos"
+ratio = 0.5
+concept = "50%"
+
+[sinks.personal]
+target = "@Personales"
+ratio = 0.3
+concept = "30%"
+default = true
+
+[sinks.reserva]
+target = "@Reserva"
+ratio = 0.2
+concept = "20%"
