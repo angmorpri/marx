@@ -1,11 +1,17 @@
-# Personal
+# Documentación
 notes/
+
+# Archivos locales
+_old/
 res/
 output/
 out/
 local/
+tests/data/MOD*_ExpensoDB
+scripts/*_ExpensoDB
+
+# Archivos de pruebas
 testing.py
-*.lnk
 
 
 # Byte-compiled / optimized / DLL files
