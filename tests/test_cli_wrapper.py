@@ -11,7 +11,8 @@ sys.path.append(os.path.dirname(MARX_DIR))
 from datetime import datetime
 from pathlib import Path
 
-from marx.cli import MarxCLI
+from marx.cli.userconfig import UserConfig
+from marx.cli.wrapper import MarxAPIWrapper
 
 
 USERCONFIG = Path(__file__).parent / "files" / "marxuserconfig.toml"
@@ -19,7 +20,8 @@ TESTING_DB = Path(__file__).parent / "data" / "Jul_04_2024_ExpensoDB"
 
 
 def test_load():
-    marxcli = MarxCLI(USERCONFIG)
+    userconfig = UserConfig(USERCONFIG)
+    marxcli = MarxAPIWrapper(userconfig)
 
     print(">>> load")
     marxcli.load()
@@ -38,7 +40,8 @@ def test_load():
 
 
 def test_save():
-    marxcli = MarxCLI(USERCONFIG)
+    userconfig = UserConfig(USERCONFIG)
+    marxcli = MarxAPIWrapper(userconfig)
 
     print(">>> load TESTING_DB")
     marxcli.load(TESTING_DB)
@@ -66,7 +69,9 @@ def test_save():
 
 
 def test_distr():
-    marxcli = MarxCLI(USERCONFIG)
+    userconfig = UserConfig(USERCONFIG)
+    marxcli = MarxAPIWrapper(userconfig)
+
     print(">>> load <TESTING_DB>")
     marxcli.load(TESTING_DB)
     marxcli.marx.data.events.new(
@@ -97,7 +102,9 @@ def test_distr():
 
 
 def test_paychecks():
-    marxcli = MarxCLI(USERCONFIG)
+    userconfig = UserConfig(USERCONFIG)
+    marxcli = MarxAPIWrapper(userconfig)
+
     print(">>> load <TESTING_DB>")
     marxcli.load(TESTING_DB)
 
@@ -124,7 +131,9 @@ def test_paychecks():
 
 
 def test_loans():
-    marxcli = MarxCLI(USERCONFIG)
+    userconfig = UserConfig(USERCONFIG)
+    marxcli = MarxAPIWrapper(userconfig)
+
     print(">>> load <TESTING_DB>")
     marxcli.load(TESTING_DB)
 
@@ -142,4 +151,13 @@ def test_loans():
 
 
 if __name__ == "__main__":
+    test_load()
+    input("\n\n\nPulse cualquier tecla para continuar...")
+    test_save()
+    input("\n\n\nPulse cualquier tecla para continuar...")
+    test_distr()
+    input("\n\n\nPulse cualquier tecla para continuar...")
+    test_paychecks()
+    input("\n\n\nPulse cualquier tecla para continuar...")
     test_loans()
+    input("\n\n\nPulse cualquier tecla para continuar...")

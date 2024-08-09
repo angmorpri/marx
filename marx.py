@@ -7,12 +7,9 @@ from pathlib import Path
 from marx.cli import MarxCLI
 
 
-USERCONFIG = Path(__file__).parent / "tests" / "files" / "marxuserconfig.toml"
-
-
 if __name__ == "__main__":
     if len(sys.argv) > 1:
-        marxcli = MarxCLI(USERCONFIG).args(sys.argv[1:])
+        marxcli = MarxCLI().parse(sys.argv[1:])
     else:
-        marxcli = MarxCLI(USERCONFIG).interactive()
+        marxcli = MarxCLI().menu()
         input("Pulse cualquier tecla para salir...")
