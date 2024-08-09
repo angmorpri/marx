@@ -81,6 +81,8 @@ class PaycheckParser:
                 raise ValueError(
                     f"[PaycheckParser] El criterio {key!r} no puede tener parámetros 'orig' y 'dest'"
                 )
+            if "order" not in params:
+                params["order"] = 1000
 
     def parse(self, paycheck: Path, date: datetime) -> Factory[Event]:
         """Extrae la información de una nómina
@@ -134,10 +136,14 @@ class PaycheckParser:
                 f"no coincide con el total a ingresar ({total})"
             )
 
+        # Orden en el que se generan los eventos
+        sorted_keys = sorted(self.criteria, key=lambda key: self.criteria[key]["order"])
+
         # Generación de eventos
         paycheck_account = self.data.accounts.subset(name="Ingresos").pullone()
         events = self.data.events.subset()
-        for key, value in totals.items():
+        for key in sorted_keys:
+            value = totals[key]
             if value == 0.0:
                 continue
             params = self.criteria[key]

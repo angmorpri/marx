@@ -2,7 +2,6 @@
 # Creado: 09/08/2024
 
 import sys
-from pathlib import Path
 
 from marx.cli import MarxCLI
 
