@@ -33,10 +33,10 @@ from marx.util.factory import Factory
 
 LOAN_TAG_PATTERN = r"\[.*?\]"
 
-CREDITOR_IN = "A23"
-DEBTOR_IN = "A24"
-CREDITOR_OUT = "B14"
-DEBTOR_OUT = "B13"
+DEBTOR_IN = "A31"
+DEBTOR_OUT = "B61"
+CREDITOR_IN = "A32"
+CREDITOR_OUT = "B62"
 
 DEFAULT_MARK = "!"
 
