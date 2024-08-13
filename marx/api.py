@@ -12,8 +12,9 @@ from typing import Any
 
 from marx.automation import Distribution, LoansHandler, PaycheckParser
 from marx.mappers import MarxMapper
+from marx.reporting import Report
 
-Report = dict[str, Any]
+Result = dict[str, Any]
 
 
 class Marx:
@@ -32,8 +33,8 @@ class Marx:
     - loans_list: Lista los préstamos en curso.
     - loans_default: Genera una situación de impago en un préstamo.
 
-    - report: Genera diversos reportes en función de una serie de reglas
-        predefinidas.
+    - build_report: Crea un reporte en formato Excel, a partir de un generador
+        (objeto de la clase Report) y unas fechas.
 
     El constructor no recibe argumentos.
 
@@ -58,7 +59,7 @@ class Marx:
         """
         return self.mapper.save(dbg=self.dbg_mode)
 
-    def distr(self, criteria: Path, date: datetime) -> Report:
+    def distr(self, criteria: Path, date: datetime) -> Result:
         """Ejecuta distribuciones monetarias automáticas, en función del
         juego de reglas proporcionado.
 
@@ -94,7 +95,7 @@ class Marx:
             "events": [event.serialize() for event in events],
         }
 
-    def paycheck_parse(self, paycheck: Path, criteria: Path, date: datetime) -> Report:
+    def paycheck_parse(self, paycheck: Path, criteria: Path, date: datetime) -> Result:
         """Analiza y extrae información de una nómina con formato predefinido.
 
         Los eventos generados se registrarán en la base de datos con la fecha
@@ -110,7 +111,7 @@ class Marx:
             "events": [event.serialize() for event in events],
         }
 
-    def loans_list(self, date_to: datetime) -> Report:
+    def loans_list(self, date_to: datetime) -> Result:
         """Identifica y devuelve los préstamos en el intervalo de fechas
         proporcionado.
 
@@ -136,10 +137,17 @@ class Marx:
             for loan in loans
         }
 
-    def loans_default(self, loan_tag: str) -> Report:
+    def loans_default(self, loan_tag: str) -> Result:
         """Genera una situación de impago en un préstamo."""
         handler = LoansHandler(self.data)
         events = handler.default(loan_tag)
         return {
             "events": [event.serialize() for event in events],
         }
+        
+    def build_report(self, report: Report, dates: list[datetime], output_path: Path, output_sheet: str) -> Path:
+        """Genera un reporte a partir de un generador y sus parámetros"""
+        report.prepare(output_path, output_sheet)
+        report.build(dates)
+        return report.save()
+        
