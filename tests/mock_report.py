@@ -13,8 +13,8 @@ from pathlib import Path
 
 from marx import Marx
 from marx.automation import LoansHandler
-from marx.models import Counterpart
 from marx.reporting import Report
+from marx.reporting.tools import TreeTable, formulas
 
 TESTING_DB = Path(__file__).parent / "data" / "Ago_10_2024_ExpensoDB"
 
@@ -38,88 +38,82 @@ class MockReport(Report):
         [L3]            <concepto>
 
         """
-        dates = {f"{date:%Y-%m-%d}": date for date in dates}
-        tt = TreeTable(headers=dates.keys())
-        
+        tt = TreeTable("Balance")
+        tt.set_headers([dt.strftime("%d/%m/%Y") for dt in dates])
+
         # esqueleto de la tabla
-        tt.append("Activos", id="A", omit_if_childless=False)
-        tt["A"].append("Activos corrientes", id="AC", omit_if_childless=False)
-        tt["AC"].append("Caja", id="ACC", omit_if_childless=True)
-        tt["AC"].append("Ahorro", id="ACA", omit_if_childless=True)
-        tt["AC"].append("Cuentas a cobrar", id="ACB", omit_if_childless=True)
-        tt["A"].append("Activos financieros", id="AF", omit_if_childless=False)
-        tt.append("Pasivos", id="P", omit_if_childless=False)
-        tt["P"].append("Deudas", id="PD", omit_if_childless=False)
-        tt["PD"].append("Deudas a corto plazo", id="PDS", omit_if_childless=True)
-        tt["PD"].append("Deudas a largo plazo", id="PDL", omit_if_childless=True)
-        tt.append("Patrimonio neto", id="N", omit_if_childless=False)
-        tt.append("Capital", id="NC", omit_if_childless=False)
-        
+        tt.append("A", "Activos", omit_if_childless=False)
+        tt["A"].append("AC", "Activos corrientes", omit_if_childless=False)
+        tt["AC"].append("ACC", "Caja", omit_if_childless=True)
+        tt["AC"].append("ACA", "Ahorro", omit_if_childless=True)
+        tt["AC"].append("ACB", "Cuentas a cobrar", omit_if_childless=True)
+        tt["A"].append("AF", "Activos financieros", omit_if_childless=False)
+        tt.append("P", "Pasivos", omit_if_childless=False)
+        tt["P"].append("PD", "Deudas", omit_if_childless=False)
+        tt["PD"].append("PDS", "Deudas a corto plazo", omit_if_childless=True)
+        tt["PD"].append("PDL", "Deudas a largo plazo", omit_if_childless=True)
+        # TODO: mecanismo para distinguir entre deudas a corto y largo plazo
+        tt.append("N", "Patrimonio neto", omit_if_childless=False)
+        tt.append("NC", "Capital", omit_if_childless=False)
+
         # por defecto, suman los valores de sus hijos
         for node in tt.iter_all():
-            node.set_values(_all_=formulas.SUM_CHILDREN)
-        tt["NC"].set_values(_all_=formulas.new("{A} - {P}"))
-        
-        # rellenar con los datos
+            node.values[...] = formulas.SUM_CHILDREN
+        # excepciones
+        tt["NC"].values[...] = formulas.new("{A} - {P}")
+
+        # caja, ahorro y activos financieros
         for event in self.data.events.subset(status=1):
-            for account, sign in ((event.orig, -1), (event.dest, 1)):
-                if isinstance(account, Counterpart) or account.disabled:
-                    continue
+            accounts = []
+            if event.flow in (0, 1) and not event.dest.disabled:
+                accounts.append((event.dest, 1))
+            if event.flow in (0, -1) and not event.orig.disabled:
+                accounts.append((event.orig, -1))
+            for account, sign in accounts:
                 if account.name == "Inversión":
-                    node = tt["AF"].append(event.category.title, id=event.category.code, sorting_value=event.category_code, omit_if_childless=True)
-                    title, sorting_value = event.concept, event.concept
+                    node = tt["AF"].append(
+                        event.category.code,
+                        event.category.title,
+                        omit_if_childless=True,
+                        sort_with=event.category.code,
+                    )
+                    title, sort_with = event.concept, event.concept
                 elif account.name in ("Hucha", "Reserva"):
                     node = tt["ACA"]
-                    title, sorting_value = "Ahorro", 2
+                    title, sort_with = account.name, account.order
                 else:
                     node = tt["ACC"]
-                    title, sorting_value = "Caja", 1
+                    title, sort_with = account.name, account.order
                 # añadir filas donde sea necesario
-                new = node.append(title, sorting_value=sorting_value)
+                new_id = f"{node.id}_{title.replace(' ', '_').lower()}"
+                new = node.append(new_id, title, sort_with=sort_with)
                 # añadir valores
-                for key, date in dates.items():
+                for date in dates:
                     if event.date <= date:
-                        new.set_values(**{key: sign * event.amount})
-                
-        
-        
-        
-        table = TableBuilder()
-        timetables = {f"{date:%Y-%m-%d}": date for date in sorted(dates)}
-        table.set_headers(timetables)
-
-        # Activos
- 
-                for date_key, date in timetables.items():
-                    if event.date <= date:
-                        l3_row.values[date_key] += sign * event.amount
-
-        # Cuentas a cobrar (dentro de Activos/Activos corrientes)
+                        new.values[date.strftime("%d/%m/%Y")] += sign * event.amount
+        # cuentas a cobrar
         loans_handler = LoansHandler(self.data)
-        for date_key, date in timetables.items():
+        for date in dates:
             for loan in loans_handler.find(date):
                 if loan.position != 1 or loan.status != 1:
                     continue
-                loan_row = cor.append("Cuentas a cobrar", value=f.SUM_CHILDREN, sorting_key=3)
                 header = f"{loan.events[-1].counterpart.name} ({loan.events[-1].concept})"
-                loan_row.append(header, value={})
-                loan_row.values[date_key] += loan.remaining
+                node = tt["ACB"].append(header, id=f"ACB_{loan.tag}")
+                node.values[date.strftime("%d/%m/%Y")] += loan.remaining
 
-        # Pasivos
-        table.append("Pasivos", value=f.SUM_CHILDREN)
-        debts = table["Pasivos"].append("Deudas", value=f.SUM_CHILDREN)
-        # TODO: mecanismo para distinguir entre deudas a corto y largo plazo
+        # construir la hoja de cálculo
+        # TODO: tt.build(sheet=self.sheet)
 
-        # Patrimonio neto
-        pn = table.append("Patrimonio neto", value=f.SUM_CHILDREN)
-        result = pn.append("Capital", value={})
-        for date_key, date in timetables.items():
-            result.values[date_key] = (
-                table["Activos"].values[date_key] - table["Pasivos"].values[date_key]
-            )
+        print(">>>", tt)
+        self.table = tt
 
-        # Construir la Excel
-        table.build(sheet=self.sheet)
+    def __str__(self) -> str:
+        s = [self.title, self.descripton, ""]
+        s += [self.table.title]
+        for node in self.table.iter_all():
+            s += [f"|{'-'*node.level}{node!s}"]
+        s += ["\\\n"]
+        return "\n".join(s)
 
 
 if __name__ == "__main__":
@@ -127,4 +121,5 @@ if __name__ == "__main__":
     m.load(TESTING_DB)
 
     report = MockReport(m.data)
+    report.build(dates=[datetime(2024, 1, 1), datetime(2024, 2, 1)])
     print(report)
