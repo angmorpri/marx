@@ -14,25 +14,43 @@ from pathlib import Path
 from pprint import pprint
 
 from marx import Marx
+from marx.automation import LoansHandler
+from marx.mappers import MarxMapper
 
-TESTING_FILE = Path(__file__).parent / "data" / "Jul_04_2024_ExpensoDB"
-# TESTING_FILE = Path("G:/Mi unidad/MiBilletera Backups/Ago_01_2024_ExpensoDB")
+TESTING_FILE = Path(__file__).parent / "data" / "Ago_16_2024_ExpensoDB"
 
 DEFAULT_DATE = datetime(2024, 8, 30)
 
 
+def raw_test():
+    mapper = MarxMapper(TESTING_FILE)
+    data = mapper.load()
+    loans = LoansHandler(data)
+    for loan in loans.find(datetime(2024, 2, 1)):
+        print(loan)
+        loan.show()
+        for event in loan.events:
+            print(" -", event.pullone())
+        print()
+
+
 if __name__ == "__main__":
-    m = Marx()
-    m.load(TESTING_FILE)
 
-    res = m.loans_list(DEFAULT_DATE)
-    pprint(res, sort_dicts=False)
-    input()
+    if 1:
+        raw_test()
 
-    res = m.loans_default("THORLT")
-    pprint(res, sort_dicts=False)
-    input()
+    if 0:
+        m = Marx()
+        m.load(TESTING_FILE)
 
-    pprint(m.loans_list(DEFAULT_DATE), sort_dicts=False)
+        res = m.loans_list(DEFAULT_DATE)
+        pprint(res, sort_dicts=False)
+        input()
 
-    m.save()
+        res = m.loans_default("THORLT")
+        pprint(res, sort_dicts=False)
+        input()
+
+        pprint(m.loans_list(DEFAULT_DATE), sort_dicts=False)
+
+        m.save()

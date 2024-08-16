@@ -14,6 +14,9 @@ from dataclasses import dataclass
 from types import EllipsisType
 from typing import Any, Iterable
 
+import openpyxl
+from openpyxl.worksheet.worksheet import Worksheet
+
 ColID = str
 RowID = str
 
@@ -28,13 +31,21 @@ class RowValuesDict(dict):
     Se puede usar la clave especial ... (Ellipsis), para modificar el valor de
     todas las columnas de la tabla a la vez.
 
+    El método 'freeze' permite bloquear la modificación de los valores. Si se
+    intenta modificar un valor congelado, no se realizará ninguna acción.
+
     """
 
     def __init__(self, keys: Iterable[str]) -> None:
-        self._keys = keys
-        super().__init__({key: 0 for key in self._keys})
+        super().__init__({key: 0 for key in keys})
+        self._keys = list(keys)
+        self._frozen = False
 
-    def __getitme__(self, key: str | EllipsisType) -> Any:
+    def freeze(self) -> None:
+        """Bloquea la modificación de los valores"""
+        self._frozen = True
+
+    def __getitem__(self, key: str | EllipsisType) -> Any:
         if key is Ellipsis:
             return list(self.values())
         elif key not in self._keys:
@@ -42,6 +53,8 @@ class RowValuesDict(dict):
         return super().__getitem__(key)
 
     def __setitem__(self, key: str | EllipsisType, value: Any) -> None:
+        if self._frozen:
+            return
         if key is Ellipsis:
             for key in self._keys:
                 super().__setitem__(key, value)
@@ -143,20 +156,24 @@ class TreeTable(TreeNode):
     cabecera y una serie de valores asociados a las columnas de la tabla,
     identificadas por un ID único.
 
-    El constructor recibe el título de la tabla y, opcionalmente, la lista de
-    identificadores de las columnas. Si no se especifican, se deberá añadir
-    posteriormente mediante el método 'set_headers'.
+    El constructor recibe el título de la tabla y la lista de identificadores
+    de las columnas.
 
     """
 
-    def __init__(self, title: str, headers: Iterable[str] | None = None) -> None:
-        self.headers = headers or []
+    def __init__(self, title: str, headers: Iterable[str]) -> None:
+        self.headers = headers
+        super().__init__(None, "<<MASTER>>", title, False, None)
         self._nodes = {}
-        super().__init__(None, "", title, False, None)
+        for header in headers:
+            self.values[header] = header
+        self.values.freeze()
 
     @property
     def master(self) -> TreeTable:
         return self
+
+    # método especiales de tabla
 
     def set_headers(self, headers: Iterable[str]) -> None:
         """Establece las cabeceras de la tabla"""
@@ -165,5 +182,33 @@ class TreeTable(TreeNode):
     def __getitem__(self, id: str) -> TreeNode:
         return self._nodes[id]
 
+    def build(self, sheet: Worksheet) -> None:
+        """Construye la tabla en una hoja de cálculo de Excel
+
+        La hoja debe tener formato openpyxl.Worksheet.
+
+        """
+        pass
+
+    # métodos de representación
+
     def __str__(self) -> str:
         return f"TreeTable({self.title}, {len(self._nodes)} nodes, {len(self.headers)} columns)"
+
+    def show(self) -> None:
+        """Dibuja la tabla en la consola"""
+        columns = [[] for _ in range(len(self.headers) + 1)]
+        for node in self.iter_all():
+            columns[0].append("  " * node.level + node.title)
+            for i, value in enumerate(node.values.values(), start=1):
+                if isinstance(value, (int, float)):
+                    columns[i].append(f"{value:+.2f}")
+                else:
+                    columns[i].append(str(value))
+        columns_padding = [max(len(cell) for cell in column) for column in columns]
+        separator = "+".join("-" * pad for pad in columns_padding)
+        for row in zip(*columns):
+            print(separator)
+            print("|".join(cell.ljust(pad) for cell, pad in zip(row, columns_padding)))
+        print(separator)
+        print()

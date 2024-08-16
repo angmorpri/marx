@@ -16,7 +16,7 @@ from marx.automation import LoansHandler
 from marx.reporting import Report
 from marx.reporting.tools import TreeTable, formulas
 
-TESTING_DB = Path(__file__).parent / "data" / "Ago_10_2024_ExpensoDB"
+TESTING_DB = Path(__file__).parent / "data" / "Ago_16_2024_ExpensoDB"
 
 
 class MockReport(Report):
@@ -38,29 +38,28 @@ class MockReport(Report):
         [L3]            <concepto>
 
         """
-        tt = TreeTable("Balance")
-        tt.set_headers([dt.strftime("%d/%m/%Y") for dt in dates])
+        self.table = TreeTable("Balance", headers=[dt.strftime("%d/%m/%Y") for dt in dates])
 
         # esqueleto de la tabla
-        tt.append("A", "Activos", omit_if_childless=False)
-        tt["A"].append("AC", "Activos corrientes", omit_if_childless=False)
-        tt["AC"].append("ACC", "Caja", omit_if_childless=True)
-        tt["AC"].append("ACA", "Ahorro", omit_if_childless=True)
-        tt["AC"].append("ACB", "Cuentas a cobrar", omit_if_childless=True)
-        tt["A"].append("AF", "Activos financieros", omit_if_childless=False)
-        tt.append("P", "Pasivos", omit_if_childless=False)
-        tt["P"].append("PD", "Deudas", omit_if_childless=False)
-        tt["PD"].append("PDS", "Deudas a corto plazo", omit_if_childless=True)
-        tt["PD"].append("PDL", "Deudas a largo plazo", omit_if_childless=True)
+        self.table.append("A", "Activos", omit_if_childless=False)
+        self.table["A"].append("AC", "Activos corrientes", omit_if_childless=False)
+        self.table["AC"].append("ACC", "Caja", omit_if_childless=True)
+        self.table["AC"].append("ACA", "Ahorro", omit_if_childless=True)
+        self.table["AC"].append("ACB", "Cuentas a cobrar", omit_if_childless=True)
+        self.table["A"].append("AF", "Activos financieros", omit_if_childless=False)
+        self.table.append("P", "Pasivos", omit_if_childless=False)
+        self.table["P"].append("PD", "Deudas", omit_if_childless=False)
+        self.table["PD"].append("PDS", "Deudas a corto plazo", omit_if_childless=True)
+        self.table["PD"].append("PDL", "Deudas a largo plazo", omit_if_childless=True)
         # TODO: mecanismo para distinguir entre deudas a corto y largo plazo
-        tt.append("N", "Patrimonio neto", omit_if_childless=False)
-        tt.append("NC", "Capital", omit_if_childless=False)
+        self.table.append("N", "Patrimonio neto", omit_if_childless=False)
+        self.table.append("NC", "Capital", omit_if_childless=False)
 
         # por defecto, suman los valores de sus hijos
-        for node in tt.iter_all():
-            node.values[...] = formulas.SUM_CHILDREN
+        for node in self.table.iter_all():
+            node.values[...] = "=SUM(@CHILDREN)"
         # excepciones
-        tt["NC"].values[...] = formulas.new("{A} - {P}")
+        self.table["NC"].values[...] = "={A} - {P}"
 
         # caja, ahorro y activos financieros
         for event in self.data.events.subset(status=1):
@@ -71,18 +70,19 @@ class MockReport(Report):
                 accounts.append((event.orig, -1))
             for account, sign in accounts:
                 if account.name == "Inversión":
-                    node = tt["AF"].append(
+                    node = self.table["AF"].append(
                         event.category.code,
                         event.category.title,
                         omit_if_childless=True,
                         sort_with=event.category.code,
                     )
+                    node.values[...] = "=SUM(@CHILDREN)"
                     title, sort_with = event.concept, event.concept
                 elif account.name in ("Hucha", "Reserva"):
-                    node = tt["ACA"]
+                    node = self.table["ACA"]
                     title, sort_with = account.name, account.order
                 else:
-                    node = tt["ACC"]
+                    node = self.table["ACC"]
                     title, sort_with = account.name, account.order
                 # añadir filas donde sea necesario
                 new_id = f"{node.id}_{title.replace(' ', '_').lower()}"
@@ -95,25 +95,20 @@ class MockReport(Report):
         loans_handler = LoansHandler(self.data)
         for date in dates:
             for loan in loans_handler.find(date):
-                if loan.position != 1 or loan.status != 1:
-                    continue
-                header = f"{loan.events[-1].counterpart.name} ({loan.events[-1].concept})"
-                node = tt["ACB"].append(header, id=f"ACB_{loan.tag}")
-                node.values[date.strftime("%d/%m/%Y")] += loan.remaining
+                if loan.position == 1 and loan.status == 0:
+                    header = f"{loan.events[-1].counterpart.name} ({loan.events[-1].concept})"
+                    node = self.table["ACB"].append(f"ACB_{loan.tag}", header)
+                    node.values[date.strftime("%d/%m/%Y")] += loan.remaining
 
         # construir la hoja de cálculo
         # TODO: tt.build(sheet=self.sheet)
 
-        print(">>>", tt)
-        self.table = tt
-
     def __str__(self) -> str:
-        s = [self.title, self.descripton, ""]
-        s += [self.table.title]
-        for node in self.table.iter_all():
-            s += [f"|{'-'*node.level}{node!s}"]
-        s += ["\\\n"]
-        return "\n".join(s)
+        return f"Report({self.name!r}, {self.title!r}, {self.descripton!r})"
+
+    def show(self) -> str:
+        print(self)
+        self.table.show()
 
 
 if __name__ == "__main__":
@@ -121,5 +116,12 @@ if __name__ == "__main__":
     m.load(TESTING_DB)
 
     report = MockReport(m.data)
-    report.build(dates=[datetime(2024, 1, 1), datetime(2024, 2, 1)])
-    print(report)
+    report.build(
+        dates=[
+            datetime(2023, 12, 1),
+            datetime(2024, 1, 1),
+            datetime(2024, 2, 1),
+            datetime(2024, 3, 1),
+        ]
+    )
+    report.show()

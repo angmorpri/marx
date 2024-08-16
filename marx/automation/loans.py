@@ -33,10 +33,10 @@ from marx.util.factory import Factory
 
 LOAN_TAG_PATTERN = r"\[.*?\]"
 
-DEBTOR_IN = "A31"
-DEBTOR_OUT = "B61"
-CREDITOR_IN = "A32"
-CREDITOR_OUT = "B62"
+DEBTOR_IN = "A31"  # Préstamos recibidos
+DEBTOR_OUT = "B61"  # Deudas a pagar
+CREDITOR_IN = "A32"  # Deudas a cobrar
+CREDITOR_OUT = "B62"  # Préstamos concedidos
 
 DEFAULT_MARK = "!"
 
@@ -50,8 +50,8 @@ class Loan:
 
     """
 
-    DEBTOR = -1
-    CREDITOR = 1
+    DEBTOR = -1  # yo DEBO dinero
+    CREDITOR = 1  # yo PRESTO dinero
 
     ONGOING = 0
     CLOSED = 1
@@ -73,7 +73,7 @@ class Loan:
     @property
     def position(self) -> int:
         """Posición del usuario en el préstamo o deuda"""
-        catcode = self.events[0].category.code
+        catcode = self.events[-1].category.code
         if catcode in (DEBTOR_IN, DEBTOR_OUT):
             return Loan.DEBTOR
         if catcode in (CREDITOR_IN, CREDITOR_OUT):
