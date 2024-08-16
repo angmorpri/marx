@@ -2,6 +2,4 @@
 # Creado: 05/03/2024
 """Herramientas y utilidades para manejar hojas de cálculo de Excel."""
 
-from .styles import *
-from .excel import *
-from .formula import *
+from .manager import ExcelManager, OpenPyXLSheet, OpenPyXLWorkbook

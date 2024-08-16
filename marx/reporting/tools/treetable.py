@@ -14,11 +14,7 @@ from dataclasses import dataclass
 from types import EllipsisType
 from typing import Any, Iterable
 
-import openpyxl
-from openpyxl.worksheet.worksheet import Worksheet
-
-ColID = str
-RowID = str
+from marx.reporting.tools.excel import ExcelManager, OpenPyXLSheet
 
 
 class RowValuesDict(dict):
@@ -182,13 +178,43 @@ class TreeTable(TreeNode):
     def __getitem__(self, id: str) -> TreeNode:
         return self._nodes[id]
 
-    def build(self, sheet: Worksheet) -> None:
+    # construcción de la tabla en Excel
+
+    def build(self, sheet: OpenPyXLSheet) -> None:
         """Construye la tabla en una hoja de cálculo de Excel
 
         La hoja debe tener formato openpyxl.Worksheet.
 
         """
-        pass
+        sheet = ExcelManager.from_sheet(sheet)
+
+        # tamaño de las columnas
+        sheet.set_column_width(1, 35)
+        for i in range(2, len(self.headers) + 2):
+            sheet.set_column_width(i, 15)
+
+        # se asigna la fila destino a cada nodo
+        # esto permite resolver las fórmulas cuando sea necesario
+        for row, node in enumerate(self.iter_all(), start=2):
+            if node.omit_if_childless and not node.has_children():
+                continue
+            node.row = row
+
+        # tabla
+        pointer = sheet.point("A1")
+        for node in self.iter_all():
+            if node.omit_if_childless and not node.has_children():
+                continue
+            pointer.goto(row=node.row, column=1)
+            pointer.cell.value = node.title
+            pointer.right()
+            for value in node.values.values():
+                # resolver fórmulas si es necesario
+                if isinstance(value, str) and value.startswith("="):
+                    value = value[1:]
+                # asignar valor y moverse a la derecha
+                pointer.cell.value = value
+                pointer.right()
 
     # métodos de representación
 
