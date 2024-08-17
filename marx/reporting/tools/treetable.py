@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from types import EllipsisType
 from typing import Any, Iterable
 
-from marx.reporting.tools.excel import ExcelManager, OpenPyXLSheet
+from marx.reporting.tools.excel import SheetManager, OpenPyXLSheet, parse_formula
 
 
 class RowValuesDict(dict):
@@ -178,6 +178,9 @@ class TreeTable(TreeNode):
     def __getitem__(self, id: str) -> TreeNode:
         return self._nodes[id]
 
+    def __contains__(self, id: str) -> bool:
+        return id in self._nodes
+
     # construcción de la tabla en Excel
 
     def build(self, sheet: OpenPyXLSheet) -> None:
@@ -186,7 +189,7 @@ class TreeTable(TreeNode):
         La hoja debe tener formato openpyxl.Worksheet.
 
         """
-        sheet = ExcelManager.from_sheet(sheet)
+        sheet = SheetManager(sheet)
 
         # tamaño de las columnas
         sheet.set_column_width(1, 35)
@@ -205,16 +208,18 @@ class TreeTable(TreeNode):
         for node in self.iter_all():
             if node.omit_if_childless and not node.has_children():
                 continue
-            pointer.goto(row=node.row, column=1)
             pointer.cell.value = node.title
             pointer.right()
             for value in node.values.values():
-                # resolver fórmulas si es necesario
+                # resolver fórmulas y ajustar valores
                 if isinstance(value, str) and value.startswith("="):
-                    value = value[1:]
+                    value = parse_formula(value, node, pointer.cell.lcolumn)
+                elif isinstance(value, (int, float)):
+                    value = round(value, 2)
                 # asignar valor y moverse a la derecha
                 pointer.cell.value = value
                 pointer.right()
+            pointer.ln()
 
     # métodos de representación
 

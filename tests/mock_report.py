@@ -14,9 +14,11 @@ from pathlib import Path
 from marx import Marx
 from marx.automation import LoansHandler
 from marx.reporting import Report
-from marx.reporting.tools import TreeTable, formulas
+from marx.reporting.tools import TreeTable
 
 TESTING_DB = Path(__file__).parent / "data" / "Ago_16_2024_ExpensoDB"
+TESTING_EXCEL = Path(__file__).parent / "files" / "testing.xlsx"
+TESTING_SHEET = "Testing"
 
 
 class MockReport(Report):
@@ -101,7 +103,7 @@ class MockReport(Report):
                     node.values[date.strftime("%d/%m/%Y")] += loan.remaining
 
         # construir la hoja de cálculo
-        # TODO: tt.build(sheet=self.sheet)
+        self.table.build(self.sheet)
 
     def __str__(self) -> str:
         return f"Report({self.name!r}, {self.title!r}, {self.descripton!r})"
@@ -116,6 +118,7 @@ if __name__ == "__main__":
     m.load(TESTING_DB)
 
     report = MockReport(m.data)
+    report.prepare(TESTING_EXCEL, TESTING_SHEET)
     report.build(
         dates=[
             datetime(2023, 12, 1),
@@ -125,3 +128,5 @@ if __name__ == "__main__":
         ]
     )
     report.show()
+    input("Press Enter to save the report...")
+    report.save()
