@@ -11,7 +11,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, TypedDict
 
-import openpyxl
 from openpyxl.cell.cell import Cell as _OpenPyXLCell
 from openpyxl.worksheet.worksheet import Worksheet as _OpenPyXLSheet
 

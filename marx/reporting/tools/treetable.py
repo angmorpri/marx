@@ -102,6 +102,9 @@ class TreeNode:
     def has_children(self) -> bool:
         return bool(self._children)
 
+    def has_siblings(self) -> bool:
+        return bool(self.siblings)
+
     # métodos de jerarquía
 
     def append(
@@ -198,10 +201,11 @@ class TreeTable(TreeNode):
 
         # se asigna la fila destino a cada nodo
         # esto permite resolver las fórmulas cuando sea necesario
-        for row, node in enumerate(self.iter_all(), start=2):
+        for row, node in enumerate(self.iter_all(), start=1):
             if node.omit_if_childless and not node.has_children():
-                continue
-            node.row = row
+                node.row = -1
+            else:
+                node.row = row
 
         # tabla
         pointer = sheet.point("A1")

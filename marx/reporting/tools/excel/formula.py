@@ -1,11 +1,13 @@
 # Python 3.10.11
 # Creado: 17/08/2024
 """Parser de fórmulas de Excel"""
+from __future__ import annotations
 
 import re
-from typing import Iterable
+from typing import Iterable, TYPE_CHECKING
 
-# from marx.reporting.tools import TreeNode
+if TYPE_CHECKING:
+    from marx.reporting.tools import TreeNode
 
 
 NODE_REFERENCE_PATTERN = r"\{(.*?)\}"
@@ -13,7 +15,7 @@ KEY_CHILDREN = "@CHILDREN"
 KEY_SIBLINGS = "@SIBLINGS"
 
 
-def address_grouper(nodes: Iterable["TreeNode"], column: str) -> str:
+def address_grouper(nodes: Iterable[TreeNode], column: str) -> str:
     """Trata de agrupar las direcciones de los nodos en bloques contiguos
 
     Devuelve una cadena de texto con las direcciones de los nodos agrupadas,
@@ -21,24 +23,27 @@ def address_grouper(nodes: Iterable["TreeNode"], column: str) -> str:
     espera en una fórmula de Excel.
 
     """
-    block = []
+    b_start, b_end = None, None
     blocks = []
     prev_row = -1
-    for current_row in (node.row for node in nodes if hasattr(node, "row")):
-        address = f"{column}{current_row}"
+    for current_row in (node.row for node in nodes if node.row != -1):
         if current_row == (prev_row + 1):
-            block.append(address)
+            b_end = f"{column}{current_row}"
         else:
-            if block:
-                blocks.append(":".join(block))
-            block = [address]
+            if b_start and b_end:
+                blocks.append(f"{b_start}:{b_end}")
+            elif b_start:
+                blocks.append(b_start)
+            b_start = f"{column}{current_row}"
         prev_row = current_row
-    if block:
-        blocks.append(":".join(block))
+    if b_start and b_end:
+        blocks.append(f"{b_start}:{b_end}")
+    elif b_start:
+        blocks.append(b_start)
     return ",".join(blocks)
 
 
-def parse_formula(formula: str, node: "TreeNode", target_column: str) -> str:
+def parse_formula(formula: str, node: TreeNode, target_column: str) -> str:
     """Procesa una fórmula, convirtiéndola en un formato válido para Excel
 
     Una fórmula es una cadena de texto que comienza con '=', y contiene
@@ -67,9 +72,15 @@ def parse_formula(formula: str, node: "TreeNode", target_column: str) -> str:
         formula = formula.replace("{" + match + "}", ref)
     # claves especiales
     if KEY_CHILDREN in formula:
-        addresses = address_grouper(node.children, target_column)
+        children = [node for node in node.children if node.row != -1]
+        if not children:
+            return "=0"
+        addresses = address_grouper(children, target_column)
         formula = formula.replace(KEY_CHILDREN, addresses)
     if KEY_SIBLINGS in formula:
-        addresses = address_grouper(node.siblings, target_column)
+        siblings = [node for node in node.siblings if node.row != -1]
+        if not siblings:
+            return "=0"
+        addresses = address_grouper(siblings, target_column)
         formula = formula.replace(KEY_SIBLINGS, addresses)
-    return formula
+    return formula.replace(" ", "")
