@@ -6,9 +6,13 @@ import sys
 from marx.cli import MarxCLI
 
 
-if __name__ == "__main__":
+def main():
     if len(sys.argv) > 1:
-        marxcli = MarxCLI().parse(sys.argv[1:])
+        MarxCLI().parse(sys.argv[1:])
     else:
-        marxcli = MarxCLI().menu()
+        MarxCLI().menu()
         input("Pulse cualquier tecla para salir...")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "marx"
+version = "0.1.0"
+description = "Gestor de finanzas personales"
+authors = ["angmorpri <angelmorenoprieto@gmail.com>"]
+license = "GNU GENERAL PUBLIC LICENSE"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+more_itertools = "^10.4.0"
+openpyxl = "^3.1.2"
+PyPDF2 = "^3.0.1"
+python_dateutil = "^2.8.2"
+toml = "^0.10.2"
+
+[tool.poetry.scripts]
+marx = "marx.main:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
