@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from marx.automation import Distribution, LoansHandler, PaycheckParser
-from marx.mappers import MarxMapper
+from marx.models import MarxMapper
 from marx.reporting import Report
 
 Result = dict[str, Any]
@@ -144,10 +144,15 @@ class Marx:
         return {
             "events": [event.serialize() for event in events],
         }
-        
-    def build_report(self, report: Report, dates: list[datetime], output_path: Path, output_sheet: str) -> Path:
+
+    def build_report(
+        self,
+        report: Report,
+        dates: list[datetime],
+        output_path: Path,
+        output_sheet: str,
+    ) -> Path:
         """Genera un reporte a partir de un generador y sus parámetros"""
         report.prepare(output_path, output_sheet)
         report.build(dates)
         return report.save()
-        

@@ -7,7 +7,13 @@ from pathlib import Path
 
 from marx.api import Marx
 from marx.cli.userconfig import UserConfig
-from marx.cli.util import validate_path, most_recent_db, most_recent_paycheck, dialog, parse_date
+from marx.cli.util import (
+    dialog,
+    most_recent_db,
+    most_recent_paycheck,
+    parse_date,
+    validate_path,
+)
 from marx.util import safely_rename_file
 
 
@@ -135,7 +141,9 @@ class MarxAPIWrapper:
         criteria = self.userconfig.get("autoinvest_criteria_path")
         self.distr(criteria, date)
 
-    def distr(self, criteria_path: str | Path, date: str | datetime | None = None) -> None:
+    def distr(
+        self, criteria_path: str | Path, date: str | datetime | None = None
+    ) -> None:
         """Distribuye automáticamente según el archivo de criterios indicado
         en 'criteria_path'
 
@@ -207,7 +215,9 @@ class MarxAPIWrapper:
         for event in res["events"]:
             sign = "+" if event["flow"] == 1 else "-" if event["flow"] == -1 else "="
             catcode = event["category"]["code"]
-            orig2dest = f"({event['orig']['repr_name']: <12} -> {event['dest']['repr_name']})"
+            orig2dest = (
+                f"({event['orig']['repr_name']: <12} -> {event['dest']['repr_name']})"
+            )
             print(
                 f" {sign}{event['amount']:8.2f} € [{catcode}] {orig2dest: <38} {event['concept']!r}"
             )
@@ -249,7 +259,9 @@ class MarxAPIWrapper:
         """
         loans = self.marx.loans_list(datetime.now())
         if tag not in loans:
-            raise KeyError(f"No se ha encontrado ningún préstamo con la etiqueta {tag!r}")
+            raise KeyError(
+                f"No se ha encontrado ningún préstamo con la etiqueta {tag!r}"
+            )
         self.marx.loans_default(tag)
         print(f"Préstamo {tag!r} marcado exitosamente como default")
 

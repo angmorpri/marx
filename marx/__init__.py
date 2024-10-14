@@ -4,5 +4,6 @@
 
 from .api import Marx
 
-__version__ = "0.2.0"
+__version__ = "0.1.1"
 __author__ = "Ángel Moreno Prieto"
+__all__ = ["Marx"]

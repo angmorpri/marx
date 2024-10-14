@@ -63,7 +63,9 @@ class UserConfig:
         # está vacía
         if not res:
             if safe:
-                raise ValueError(f"La clave '{key}' aparece vacía en el archivo de configuración")
+                raise ValueError(
+                    f"La clave '{key}' aparece vacía en el archivo de configuración"
+                )
             return None
         # cast
         if key.endswith("_dir") or key.endswith("_path"):

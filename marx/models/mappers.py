@@ -17,11 +17,13 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
-from marx.models import Account, Counterpart, Category, Event, MarxDataStruct
 from marx.util import Factory, safely_rename_file
 
+from .models import Account, Category, Counterpart, Event, MarxDataStruct
+
 BaseDataStruct = namedtuple(
-    "BaseDataStruct", ["accounts", "categories", "notes", "recurring", "transactions", "transfers"]
+    "BaseDataStruct",
+    ["accounts", "categories", "notes", "recurring", "transactions", "transfers"],
 )
 
 
@@ -358,7 +360,9 @@ class MarxMapper:
                     item.id = cursor.lastrowid
                 # DELETE
                 for item, table_name, table_pkey, _ in to_delete:
-                    cursor.execute(f"DELETE FROM {table_name} WHERE {table_pkey} = ?", (item.rid,))
+                    cursor.execute(
+                        f"DELETE FROM {table_name} WHERE {table_pkey} = ?", (item.rid,)
+                    )
 
         return self.dest
 

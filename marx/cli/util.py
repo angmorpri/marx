@@ -22,7 +22,9 @@ MIBILLETERA_MONTHS = (
     "Dic",
 )
 
-MIBILLETERA_FILENAME_PATTERN = r"(?P<month>[A-Za-z]+)_(?P<day>\d+)_(?P<year>\d+)_ExpensoDB(?:\.db)?"
+MIBILLETERA_FILENAME_PATTERN = (
+    r"(?P<month>[A-Za-z]+)_(?P<day>\d+)_(?P<year>\d+)_ExpensoDB(?:\.db)?"
+)
 PAYCHECK_FILENAME_PATTERN = r"^\d{2}-\d{4}(-X)?\.pdf$"
 
 
@@ -65,7 +67,9 @@ def most_recent_db(path: Path) -> Path:
             top_date = date
             choice = file
     if choice is None:
-        raise FileNotFoundError(f"No se ha encontrado ninguna base de datos en '{path}'")
+        raise FileNotFoundError(
+            f"No se ha encontrado ninguna base de datos en '{path}'"
+        )
     return validate_path(choice)
 
 
@@ -90,7 +94,9 @@ def most_recent_paycheck(path: Path) -> Path:
             top_cmp = cmp
             choice = file
     if choice is None:
-        raise FileNotFoundError(f"No se ha encontrado ningún archivo de nómina en '{path}'")
+        raise FileNotFoundError(
+            f"No se ha encontrado ningún archivo de nómina en '{path}'"
+        )
     return validate_path(choice)
 
 

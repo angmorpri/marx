@@ -10,7 +10,6 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, ClassVar
 
-
 MarxDataStruct = namedtuple("MarxDataStruct", ["accounts", "categories", "events"])
 
 
@@ -49,19 +48,25 @@ class Account:
             return self.id == other.id
         elif isinstance(other, (Counterpart, str)):
             return False
-        raise TypeError(f"Unsupported comparison between 'Account' and {type(other).__name__!r}")
+        raise TypeError(
+            f"Unsupported comparison between 'Account' and {type(other).__name__!r}"
+        )
 
     def __lt__(self, other: Any) -> bool:
         if isinstance(other, Account):
             return (self.order, self.name) < (other.order, other.name)
         elif isinstance(other, (Counterpart, str)):
             return False
-        raise TypeError(f"Unsupported comparison between 'Account' and {type(other).__name__!r}")
+        raise TypeError(
+            f"Unsupported comparison between 'Account' and {type(other).__name__!r}"
+        )
 
     def __contains__(self, other: Any) -> bool:
         if isinstance(other, str):
             return other in self.name
-        raise TypeError(f"Unsupported operation between 'Account' and {type(other).__name__!r}")
+        raise TypeError(
+            f"Unsupported operation between 'Account' and {type(other).__name__!r}"
+        )
 
     def __str__(self) -> str:
         id = "----" if self.id == -1 else f"{self.rid:04d}"
@@ -107,7 +112,9 @@ class Counterpart:
     def __contains__(self, other: Any) -> bool:
         if isinstance(other, str):
             return other in self.name
-        raise TypeError(f"Unsupported operation between 'Counterpart' and {type(other).__name__!r}")
+        raise TypeError(
+            f"Unsupported operation between 'Counterpart' and {type(other).__name__!r}"
+        )
 
     def __format__(self, format_spec: str) -> str:
         return self.name.__format__(format_spec)
@@ -182,7 +189,9 @@ class Category:
             return self.id == other.id
         elif isinstance(other, str):
             return False
-        raise TypeError(f"Unsupported comparison between 'Category' and {type(other).__name__!r}")
+        raise TypeError(
+            f"Unsupported comparison between 'Category' and {type(other).__name__!r}"
+        )
 
     def __lt__(self, other: Any) -> bool:
         if isinstance(other, Category):
@@ -191,7 +200,9 @@ class Category:
             return self.code < other.code
         elif isinstance(other, str):
             return False
-        raise TypeError(f"Unsupported comparison between 'Category' and {type(other).__name__!r}")
+        raise TypeError(
+            f"Unsupported comparison between 'Category' and {type(other).__name__!r}"
+        )
 
     def __contains__(self, other: Any) -> bool:
         """Comprueba códigos de categoría.
@@ -207,7 +218,9 @@ class Category:
                 matching_code = "[A-Z]" + matching_code[1:]
             matching_code = matching_code.replace("*", "\d")
             return bool(re.match(matching_code, self.code))
-        raise TypeError(f"Unsupported operation between 'Category' and {type(other).__name__!r}")
+        raise TypeError(
+            f"Unsupported operation between 'Category' and {type(other).__name__!r}"
+        )
 
     def __str__(self) -> str:
         id = "----" if self.id == -1 else f"{self.rid:04d}"
@@ -306,7 +319,9 @@ class Event:
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, Event):
             return self.id == other.id
-        raise TypeError(f"Unsupported comparison between 'Event' and {type(other).__name__!r}")
+        raise TypeError(
+            f"Unsupported comparison between 'Event' and {type(other).__name__!r}"
+        )
 
     def __lt__(self, other: Any) -> bool:
         if isinstance(other, Event):
@@ -317,7 +332,9 @@ class Event:
                 other.amount,
                 other.concept,
             )
-        raise TypeError(f"Unsupported comparison between 'Event' and {type(other).__name__!r}")
+        raise TypeError(
+            f"Unsupported comparison between 'Event' and {type(other).__name__!r}"
+        )
 
     def __contains__(self, other: Any) -> bool:
         if isinstance(other, (Account, Counterpart)):
@@ -330,11 +347,17 @@ class Event:
             return False
         elif isinstance(other, str):
             return other in self.concept
-        raise TypeError(f"Unsupported operation between 'Event' and {type(other).__name__!r}")
+        raise TypeError(
+            f"Unsupported operation between 'Event' and {type(other).__name__!r}"
+        )
 
     def __str__(self) -> str:
         id = "----" if self.id == -1 else f"{self.rid:04d}"
-        sign = "+" if self.flow == self.INCOME else "-" if self.flow == self.EXPENSE else "="
+        sign = (
+            "+"
+            if self.flow == self.INCOME
+            else "-" if self.flow == self.EXPENSE else "="
+        )
         amount = f"{sign} {self.amount:8.2f} €"
         shconcept = self.concept
         if len(self.concept) > 20:

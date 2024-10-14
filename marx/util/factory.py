@@ -13,7 +13,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable, Generic, Iterator, TypeVar
 
-
 FactoryItem = TypeVar("FactoryItem")
 
 
@@ -92,7 +91,9 @@ class Factory(Generic[FactoryItem]):
 
     def meta_deleted(self) -> Iterator[FactoryItem]:
         """Itera sobre los objetos eliminados"""
-        yield from (self._items[id].item for id in self._handled if self._items[id].status == 0)
+        yield from (
+            self._items[id].item for id in self._handled if self._items[id].status == 0
+        )
 
     def meta_changes(self) -> Iterator[tuple[FactoryItem, list[str]]]:
         """Itera sobra los objetos modificados, junto con la lista de qué
@@ -192,7 +193,8 @@ class Factory(Generic[FactoryItem]):
 
         """
         return [
-            [getattr(self._items[id].item, attr, None) for attr in attrs] for id in self._active
+            [getattr(self._items[id].item, attr, None) for attr in attrs]
+            for id in self._active
         ]
 
     def __getattr__(self, attr: str) -> Any | list[Any]:
@@ -221,7 +223,9 @@ class Factory(Generic[FactoryItem]):
 
     # Filtrado y ordenamiento
 
-    def subset(self, *funcs: Callable[[FactoryItem], bool], **kwargs: Any) -> Factory[FactoryItem]:
+    def subset(
+        self, *funcs: Callable[[FactoryItem], bool], **kwargs: Any
+    ) -> Factory[FactoryItem]:
         """Crea un subconjunto de la lista, filtrando los objetos según los
         argumentos dados
 
@@ -255,9 +259,15 @@ class Factory(Generic[FactoryItem]):
 
         """
         if attrs:
-            key = lambda id: tuple(getattr(self._items[id].item, attr) for attr in attrs)
+
+            def key(id):
+                return tuple(getattr(self._items[id].item, attr) for attr in attrs)
+
         else:
-            key = lambda id: self._items[id].item
+
+            def key(id):
+                return self._items[id].item
+
         ids = sorted(self._handled, key=key, reverse=reverse)
         return self._create_subset(ids)
 
@@ -335,7 +345,7 @@ class Factory(Generic[FactoryItem]):
         print(f"  Objetos activos: {len(self.active)}")
         print(f"  Objetos manejados: {len(self.any)}")
         print(f"  Objetos totales: {len(self.all)}")
-        print(f"  Objetos:")
+        print("  Objetos:")
         for id in self._handled:
             print(f"    {id} | {self._status[id]} | {self._items[id]!r}")
         print()

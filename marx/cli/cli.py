@@ -18,8 +18,8 @@ from typing import Literal
 
 from more_itertools import always_iterable
 
-from marx.cli.wrapper import MarxAPIWrapper
 from marx.cli.userconfig import UserConfig
+from marx.cli.wrapper import MarxAPIWrapper
 
 
 def error(message: str) -> None:
@@ -45,7 +45,9 @@ class MarxCLI:
         if not userconfig_path:
             userconfig_path = os.getenv("MARX_USERCONFIG")
             if not userconfig_path:
-                raise ValueError("No se ha proporcionado un archivo de configuración de usuario")
+                raise ValueError(
+                    "No se ha proporcionado un archivo de configuración de usuario"
+                )
         self.userconfig_path = Path(userconfig_path)
 
         # Inicialización
@@ -70,15 +72,15 @@ class MarxCLI:
         self.setup(interactive=True)
         print(
             """
-                
+
 Bienvenido al gestor de finanzas personales
 
-    ███    ███ █████ ██████ ██   ██ 
-    ████  ██████   ████   ██ ██ ██  
-    ██ ████ ███████████████   ███   
-    ██  ██  ████   ████   ██ ██ ██  
-    ██      ████   ████   ████   ██ 
-            
+    ███    ███ █████ ██████ ██   ██
+    ████  ██████   ████   ██ ██ ██
+    ██ ████ ███████████████   ███
+    ██  ██  ████   ████   ██ ██ ██
+    ██      ████   ████   ████   ██
+
 Usa 'help' o 'h' para ver las opciones disponibles.
 Usa 'exit' o 'x' para salir.
 
@@ -139,7 +141,9 @@ Puede comenzar cargando una base de datos con 'load'.
 
     def setup(self, *, interactive: bool = False) -> None:
         """Configura los comandos y opciones de la interfaz de usuario"""
-        self.parser = argparse.ArgumentParser(description="Interfaz de usuario para Marx")
+        self.parser = argparse.ArgumentParser(
+            description="Interfaz de usuario para Marx"
+        )
         subparsers = self.parser.add_subparsers(required=True)
 
         # Comando 'load'
@@ -147,7 +151,10 @@ Puede comenzar cargando una base de datos con 'load'.
             "load", aliases=["l"], help="Cargar una base de datos de Marx"
         )
         load_parser.add_argument(
-            "key", nargs="?", default=None, help="Modo de carga o ruta de la base de datos a cargar"
+            "key",
+            nargs="?",
+            default=None,
+            help="Modo de carga o ruta de la base de datos a cargar",
         )
         load_parser.set_defaults(func=lambda args: self.marx.load(args.key))
 
@@ -165,7 +172,9 @@ Puede comenzar cargando una base de datos con 'load'.
 
         # Comando 'autoquotas'
         autoq_parser = subparsers.add_parser(
-            "autoquotas", aliases=["autoq"], help="Distribuir automáticamente las cuotas mensuales"
+            "autoquotas",
+            aliases=["autoq"],
+            help="Distribuir automáticamente las cuotas mensuales",
         )
         autoq_parser.add_argument(
             "-d", "--date", default=None, help="Fecha de imputación de las cuotas"
@@ -174,7 +183,9 @@ Puede comenzar cargando una base de datos con 'load'.
 
         # Comando 'autoinvest'
         autoi_parser = subparsers.add_parser(
-            "autoinvest", aliases=["autoi"], help="Distribuir automáticamente inversiones"
+            "autoinvest",
+            aliases=["autoi"],
+            help="Distribuir automáticamente inversiones",
         )
         autoi_parser.add_argument(
             "-d", "--date", default=None, help="Fecha de imputación de las inversiones"
@@ -183,13 +194,16 @@ Puede comenzar cargando una base de datos con 'load'.
 
         # Comando 'distr'
         distr_parser = subparsers.add_parser(
-            "distr", help="Distribuir automáticamente según el archivo de criterios indicado"
+            "distr",
+            help="Distribuir automáticamente según el archivo de criterios indicado",
         )
         distr_parser.add_argument("criteria_path", help="Ruta del archivo de criterios")
         distr_parser.add_argument(
             "-d", "--date", default=None, help="Fecha de imputación de las cuotas"
         )
-        distr_parser.set_defaults(func=lambda args: self.marx.distr(args.criteria_path, args.date))
+        distr_parser.set_defaults(
+            func=lambda args: self.marx.distr(args.criteria_path, args.date)
+        )
 
         # Comando 'paycheck'
         paycheck_parser = subparsers.add_parser(
@@ -205,11 +219,15 @@ Puede comenzar cargando una base de datos con 'load'.
             "-d", "--date", default=None, help="Fecha de imputación de las cuotas"
         )
         paycheck_parser.set_defaults(
-            func=lambda args: self.marx.paycheck(args.paycheck_path, args.criteria_path, args.date)
+            func=lambda args: self.marx.paycheck(
+                args.paycheck_path, args.criteria_path, args.date
+            )
         )
 
         # Comando 'loans'
-        loans_parser = subparsers.add_parser("loans", help="Gestionar préstamos y deudas")
+        loans_parser = subparsers.add_parser(
+            "loans", help="Gestionar préstamos y deudas"
+        )
         loans_subparsers = loans_parser.add_subparsers()
 
         loans_list_parser = loans_subparsers.add_parser(
@@ -218,18 +236,24 @@ Puede comenzar cargando una base de datos con 'load'.
         loans_list_parser.add_argument(
             "-d", "--date", default=None, help="Fecha de corte para la lista"
         )
-        loans_list_parser.set_defaults(func=lambda args: self.marx.loans_list(args.date))
+        loans_list_parser.set_defaults(
+            func=lambda args: self.marx.loans_list(args.date)
+        )
 
         loans_default_parser = loans_subparsers.add_parser(
             "default", help="Marcar un préstamo como default"
         )
         loans_default_parser.add_argument("tag", help="Etiqueta del préstamo")
-        loans_default_parser.set_defaults(func=lambda args: self.marx.loans_default(args.tag))
+        loans_default_parser.set_defaults(
+            func=lambda args: self.marx.loans_default(args.tag)
+        )
 
         # Comandos para modo interactivo
         if interactive:
             source_parser = subparsers.add_parser(
-                "source", aliases=["current"], help="Mostrar la base de datos actualmente cargada"
+                "source",
+                aliases=["current"],
+                help="Mostrar la base de datos actualmente cargada",
             )
             source_parser.set_defaults(func=lambda _: self.marx.source())
 
@@ -248,5 +272,7 @@ Puede comenzar cargando una base de datos con 'load'.
             )
             exit_parser.set_defaults(func=lambda _: self.exit())
 
-            help_parser = subparsers.add_parser("help", aliases=["h"], help="Mostrar ayuda")
+            help_parser = subparsers.add_parser(
+                "help", aliases=["h"], help="Mostrar ayuda"
+            )
             help_parser.set_defaults(func=lambda _: self.parser.print_help())

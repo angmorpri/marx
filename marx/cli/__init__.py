@@ -3,3 +3,5 @@
 """Cliente básico para Marx"""
 
 from .cli import MarxCLI
+
+__all__ = ["MarxCLI"]
