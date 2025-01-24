@@ -8,6 +8,7 @@ a través de este, transforma los datos.
 
 """
 
+import re
 import shutil
 import sqlite3 as sqlite
 from collections import namedtuple
@@ -36,8 +37,8 @@ DB_TABLES_INFO = {
     "tbl_transfer": {"target": "transfers", "prefixes": ["trans_"]},
 }
 
-TCAT_PREFIX = "[T"
-DEFAULT_TCAT_CODE = "T14"
+TCAT_REGEX = r"\[(.*?)\]"
+DEFAULT_TCAT_TITLE = "Rebalanceos"
 
 
 class BaseMapper:
@@ -171,15 +172,18 @@ class MarxMapper:
             self.data.categories.new(
                 id=base_category.id,
                 name=base_category.name,
+                type=Category.INCOME if base_category.is_inc else Category.EXPENSE,
                 icon=base_category.icon,
                 color=base_category.color,
             )
 
         # Categorías que proceden de notas
-        for note in base.notes.subset(lambda x: x.text.strip().startswith(TCAT_PREFIX)):
+        tcat_pattern = re.compile(TCAT_REGEX)
+        for note in base.notes.subset(lambda x: tcat_pattern.match(x.text.strip())):
             self.data.categories.new(
                 id=-note.id,
                 name=note.text.strip().split("\n")[0][1:-1],
+                type=Category.TRANSFER,
             )
 
         # Eventos de ingreso y gasto, y eventos recurrentes
@@ -258,7 +262,7 @@ class MarxMapper:
                 .pullone()
             )
             maybe_category, *rest = trans.note.split("\n")
-            if maybe_category.startswith(TCAT_PREFIX):
+            if tcat_pattern.match(maybe_category):
                 category_name = maybe_category[1:-1]
                 category = (
                     self.data.categories.subset(name=category_name)
@@ -271,7 +275,9 @@ class MarxMapper:
                 )
                 rest = rest or [""]
             else:
-                category = self.data.categories.subset(code=DEFAULT_TCAT_CODE)
+                category = self.data.categories.subset(
+                    title=DEFAULT_TCAT_TITLE
+                ).pullone()
                 rest = [maybe_category] + rest
             concept = rest[0].strip() or "Sin concepto"
             details = "\n".join(rest[1:]).strip() or ""

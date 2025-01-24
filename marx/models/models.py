@@ -129,23 +129,20 @@ class Category:
 
     id: int  # +: transacción, -: traslado
     name: str
+    type: int
     icon: int = 0
     color: str = "#FFFFFF"
     disabled: bool = False
 
     # Tipos
+    EXPENSE: ClassVar[int] = -1
     TRANSFER: ClassVar[int] = 0
-    TRANSACTION: ClassVar[int] = 1
+    INCOME: ClassVar[int] = 1
 
     @property
     def rid(self) -> int:
         """ID real de la categoría"""
         return abs(self.id)
-
-    @property
-    def type(self) -> int:
-        """Tipo de la categoría"""
-        return self.TRANSFER if self.code.startswith("T") else self.TRANSACTION
 
     @property
     def code(self) -> str:
@@ -169,7 +166,7 @@ class Category:
 
     def is_income(self) -> bool:
         """Comprueba si la categoría es de ingreso."""
-        return self.code.startswith("A")
+        return self.type == self.INCOME
 
     def serialize(self) -> dict[str, Any]:
         """Serializa la categoría"""
@@ -224,7 +221,12 @@ class Category:
 
     def __str__(self) -> str:
         id = "----" if self.id == -1 else f"{self.rid:04d}"
-        return f"Category(#{id}, {self.code} - {self.title}, {self.icon}, {self.color})"
+        symbol = (
+            "+"
+            if self.type == self.INCOME
+            else "-" if self.type == self.EXPENSE else "="
+        )
+        return f"Category(#{id}, {symbol} [{self.code}] {self.title}, {self.icon}, {self.color})"
 
 
 @dataclass
