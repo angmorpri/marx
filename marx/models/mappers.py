@@ -196,6 +196,11 @@ class MarxMapper:
                     .fallback(
                         id=base_category.id,
                         name=f"X{trans.cat:02}. UNKNOWN",
+                        type=(
+                            Category.INCOME
+                            if base_category.is_inc
+                            else Category.EXPENSE
+                        ),
                         disabled=True,
                     )
                     .pullone()
@@ -269,6 +274,7 @@ class MarxMapper:
                     .fallback(
                         id=-999,
                         name=category_name,
+                        type=Category.TRANSFER,
                         disabled=True,
                     )
                     .pullone()
