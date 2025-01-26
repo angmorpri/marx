@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "marx"
-version = "0.1.1"
+version = "0.1.2"
 description = "Gestión de contabilidad personal"
 authors = ["angmorpri <angelmorenoprieto@gmail.com>"]
 license = "GNU GENERAL PUBLIC LICENSE"

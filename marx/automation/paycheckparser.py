@@ -10,16 +10,15 @@ de reglas definidas en archivos TOML llamados "criterios".
 
 import math
 import re
-from datetime import datetime
 from collections import defaultdict
+from datetime import datetime
 from pathlib import Path
 
 import toml
-from PyPDF2 import PdfReader, PageObject
+from PyPDF2 import PageObject, PdfReader
 
-from marx.models import Event, MarxDataStruct
+from marx.models import Category, Event, MarxDataStruct
 from marx.util.factory import Factory
-
 
 FILENAME_PATTERN = r"\d{2}-\d{4}(-[A-Za-z])?\.pdf"
 LN_ELEMENT_PATTERN = r"^(?:\d\d-\d\d|BENEF ).*"
@@ -56,15 +55,21 @@ class PaycheckParser:
 
         # Cargar los criterios de extracción
         criteria = toml.load(criteria)
-        defaults = {key: value for key, value in criteria.items() if not isinstance(value, dict)}
+        defaults = {
+            key: value for key, value in criteria.items() if not isinstance(value, dict)
+        }
         self.criteria = {
-            key: {**defaults, **value} for key, value in criteria.items() if isinstance(value, dict)
+            key: {**defaults, **value}
+            for key, value in criteria.items()
+            if isinstance(value, dict)
         }
 
         # Comprobar que los criterios son válidos
         for key, params in self.criteria.items():
-            if key != DEFAULT and not "match" in params:
-                raise ValueError(f"[PaycheckParser] El criterio {key!r} no tiene parámetro 'match'")
+            if key != DEFAULT and "match" not in params:
+                raise ValueError(
+                    f"[PaycheckParser] El criterio {key!r} no tiene parámetro 'match'"
+                )
             if key == DEFAULT and "match" in params:
                 raise ValueError(
                     "[PaycheckParser] El criterio por defecto no puede tener parámetro 'match'"
@@ -117,31 +122,13 @@ class PaycheckParser:
                 if re.match(LN_TOTAL_PATTERN, line):
                     total = float(esp2iso(line.strip("*")))
 
-        # Comprobación de que la extracción es correcta
-        calc_total = 0.0
-        for key, value in totals.items():
-            params = self.criteria[key]
-            if params["category"].startswith("A"):
-                calc_total += value
-            elif params["category"].startswith("B"):
-                calc_total -= value
-            elif params["category"].startswith("T"):
-                if "orig" in params:
-                    calc_total += value
-                if "dest" in params:
-                    calc_total -= value
-        if not math.isclose(calc_total, total, rel_tol=1e-3):
-            raise ValueError(
-                f"[PaycheckParser] La suma de los componentes extraídos ({calc_total}) "
-                f"no coincide con el total a ingresar ({total})"
-            )
-
         # Orden en el que se generan los eventos
         sorted_keys = sorted(self.criteria, key=lambda key: self.criteria[key]["order"])
 
         # Generación de eventos
         paycheck_account = self.data.accounts.subset(name="Ingresos").pullone()
         events = self.data.events.subset()
+        generated_total = 0.0
         for key in sorted_keys:
             value = totals[key]
             if value == 0.0:
@@ -152,6 +139,15 @@ class PaycheckParser:
                 raise ValueError(
                     f"[PaycheckParser] No se encuentra la categoría {params['category']!r}"
                 )
+            if category.type == Category.INCOME:
+                generated_total += value
+            elif category.type == Category.EXPENSE:
+                generated_total -= value
+            elif category.type == Category.TRANSFER:
+                if "orig" in params:
+                    generated_total += value
+                if "dest" in params:
+                    generated_total -= value
             if "orig" in params:
                 dest = paycheck_account
                 orig = params["orig"]
@@ -175,7 +171,9 @@ class PaycheckParser:
                     continue
                 if PH_IRPF in params[info_param]:
                     str_irpf_pct = f"{irpf_pct/100:.2%}".replace(".", ",")
-                    params[info_param] = params[info_param].replace(PH_IRPF, str_irpf_pct)
+                    params[info_param] = params[info_param].replace(
+                        PH_IRPF, str_irpf_pct
+                    )
                 if PH_EXTRA_OCCASION in params[info_param]:
                     month = self._extract_month(paycheck)
                     occasion = (
@@ -187,7 +185,9 @@ class PaycheckParser:
                             else "beneficios" if month in (2, 3) else "extras"
                         )
                     )
-                    params[info_param] = params[info_param].replace(PH_EXTRA_OCCASION, occasion)
+                    params[info_param] = params[info_param].replace(
+                        PH_EXTRA_OCCASION, occasion
+                    )
             event = self.data.events.new(
                 -1,
                 date=date,
@@ -199,6 +199,13 @@ class PaycheckParser:
                 details=params.get("details", ""),
             )
             events.join(event)
+
+        # Comprobación de que la generación es correcta
+        if not math.isclose(generated_total, total, rel_tol=1e-3):
+            raise ValueError(
+                f"[PaycheckParser] La suma de los eventos generados ({generated_total}) "
+                f"no coincide con el total a ingresar ({total})"
+            )
 
         return events
 
