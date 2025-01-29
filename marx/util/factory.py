@@ -106,6 +106,14 @@ class Factory(Generic[FactoryItem]):
             if self._items[id].status == 2
         )
 
+    def meta_force_update(self, *args) -> None:
+        """Fuerza a que el objeto se actualice sobre '*args'"""
+        for id in self._handled:
+            meta = self._items[id]
+            meta.status = 2
+            for arg in args:
+                meta.changes.add(arg)
+
     # Adición, modificación y eliminación
 
     def new(self, *args: Any, **kwargs: Any) -> Factory[FactoryItem]:

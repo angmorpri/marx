@@ -316,6 +316,13 @@ class MarxMapper:
         self.dest = safely_rename_file(self.source, "MOD$_")
         shutil.copy(self.source, self.dest)
 
+        # Si alguna categoría de traslado ha sido modificada, todos los
+        # eventos que la usen deben ser actualizados también
+        for category in self.data.categories.subset(type=Category.TRANSFER):
+            if category.meta_changes():
+                for event in self.data.events.subset(category=category.pullone()):
+                    event.meta_force_update("category")
+
         for factory in self.data.accounts, self.data.categories, self.data.events:
             to_update = []
             to_insert = []
