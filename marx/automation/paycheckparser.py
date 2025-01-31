@@ -133,7 +133,7 @@ class PaycheckParser:
             value = totals[key]
             if value == 0.0:
                 continue
-            params = self.criteria[key]
+            params = self.criteria[key].copy()
             category = self.data.categories.subset(code=params["category"]).pullone()
             if category is None:
                 raise ValueError(
